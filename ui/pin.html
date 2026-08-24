@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<title>Tasks — Today</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #2a2a2e;
+    --surface:   #36363c;
+    --border:    #4a4a52;
+    --accent:    #6aaef0;
+    --text:      #eaeaee;
+    --muted:     #909098;
+    --high:      #f07878;
+    --med:       #e8bc50;
+    --low:       #74cc7c;
+    --btn-hover: #404048;
+    --input-bg:  #202024;
+  }
+  html[data-theme="warm"] {
+    --bg:        #fdf5e6;
+    --surface:   #f5e8cf;
+    --border:    #ddd0b8;
+    --accent:    #7a5c38;
+    --text:      #2a1e0e;
+    --muted:     #9a8060;
+    --high:      #cc3030;
+    --med:       #b07820;
+    --low:       #4a7a40;
+    --btn-hover: #ecddc4;
+    --input-bg:  #fffaf2;
+  }
+  html[data-theme="red"] {
+    --bg:        #fff0f0;
+    --surface:   #fcd8d8;
+    --border:    #e8b0b0;
+    --accent:    #c02020;
+    --text:      #280808;
+    --muted:     #a06060;
+    --high:      #d01010;
+    --med:       #c06820;
+    --low:       #406830;
+    --btn-hover: #f4c8c8;
+    --input-bg:  #fff5f5;
+  }
+
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 12px; height: 100vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 10px; background: var(--surface);
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .header-title { font-size: 10px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; }
+  .clock { font-family: "SF Mono","Menlo",monospace; font-size: 12px; color: var(--accent); letter-spacing: 0.04em; }
+
+  .count-bar {
+    padding: 4px 10px; background: var(--surface);
+    border-bottom: 1px solid var(--border); font-size: 10px;
+    color: var(--muted); display: flex; justify-content: space-between; flex-shrink: 0;
+  }
+  .refresh-btn {
+    background: none; border: none; color: var(--muted);
+    font-size: 11px; cursor: pointer; opacity: 0.5; transition: opacity 0.1s;
+  }
+  .refresh-btn:hover { opacity: 1; }
+
+  .task-list { flex: 1; overflow-y: auto; padding: 4px 6px; }
+  .task-list::-webkit-scrollbar { width: 3px; }
+  .task-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .task-row {
+    display: flex; align-items: center; gap: 5px;
+    padding: 4px 5px; border-radius: 3px; margin-bottom: 1px; user-select: none;
+  }
+  .task-row:hover { background: var(--btn-hover); }
+  .task-row.done-row { opacity: 0.45; }
+
+  .task-check {
+    width: 13px; height: 13px; border: 1.5px solid var(--border); border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; cursor: pointer; transition: background 0.12s, border-color 0.12s;
+  }
+  .task-check:hover   { border-color: var(--low); }
+  .task-check.checked { background: var(--low); border-color: var(--low); }
+  .task-check.checked::after { content: "✓"; font-size: 8px; color: #fff; font-weight: 700; }
+
+  .pri-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .p1 { background: var(--high); }
+  .p2 { background: var(--med); }
+  .p3 { background: var(--low); }
+  .pd { background: var(--muted); }
+
+  .task-name { flex: 1; font-size: 11.5px; line-height: 1.3; word-break: break-word; }
+  .task-row.done-row .task-name { text-decoration: line-through; }
+
+  .cat-pod {
+    display: inline-flex; align-items: center;
+    font-size: 8.5px; font-weight: 600; padding: 1px 5px;
+    border-radius: 10px; flex-shrink: 0; color: #fff;
+    white-space: nowrap; max-width: 60px; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .empty-state { color: var(--muted); font-size: 11px; padding: 20px 8px; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-title">Today's Tasks</span>
+  <span class="clock" id="clock"></span>
+</div>
+<div class="count-bar">
+  <span id="count-label"></span>
+  <button class="refresh-btn" id="refresh-btn" title="Refresh">&#8635;</button>
+</div>
+<div class="task-list" id="task-list"></div>
+
+<script>
+function api() {
+  if (!window.pywebview || !window.pywebview.api) throw new Error('not ready');
+  return window.pywebview.api;
+}
+
+function startClock() {
+  function tick() {
+    const n = new Date(), p = v => String(v).padStart(2,'0');
+    document.getElementById('clock').textContent =
+      `${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
+  }
+  tick(); setInterval(tick, 1000);
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+const DOT_CLS = {1:'p1', 2:'p2', 3:'p3'};
+
+function catPod(name, color) {
+  if (!name) return '';
+  return `<span class="cat-pod" style="background:${esc(color)}" title="${esc(name)}">${esc(name.slice(0,8))}</span>`;
+}
+
+async function loadTasks() {
+  try {
+    const tasks = await api().get_today_tasks();
+    const done  = tasks.filter(t => t.completed).length;
+    document.getElementById('count-label').textContent =
+      tasks.length ? `${done} / ${tasks.length} done` : '';
+    const list = document.getElementById('task-list');
+    if (!tasks.length) { list.innerHTML = '<div class="empty-state">No tasks today.</div>'; return; }
+    list.innerHTML = tasks.map(t =>
+      `<div class="task-row ${t.completed ? 'done-row':''}">
+        <div class="task-check ${t.completed ? 'checked':''}" onclick="toggle(${t.id},${t.completed})"></div>
+        <div class="pri-dot ${t.completed ? 'pd' : (DOT_CLS[t.priority]||'p2')}"></div>
+        <span class="task-name">${esc(t.name)}</span>
+        ${t.cat_name ? catPod(t.cat_name, t.cat_color) : ''}
+      </div>`
+    ).join('');
+  } catch(e) {}
+}
+
+async function toggle(id, wasDone) {
+  try {
+    if (wasDone) await api().unmark_done(id); else await api().mark_done(id);
+    await loadTasks();
+  } catch(e) {}
+}
+
+document.getElementById('refresh-btn').addEventListener('click', loadTasks);
+setInterval(loadTasks, 60000);
+
+async function init() {
+  startClock();
+  try {
+    const cfg = await api().get_config();
+    document.documentElement.setAttribute('data-theme', cfg.theme || 'dark');
+  } catch(e) {}
+  await loadTasks();
+}
+
+if (window.pywebview && window.pywebview.api) {
+  init();
+} else {
+  window.addEventListener('pywebviewready', init);
+}
+</script>
+</body>
+</html>
