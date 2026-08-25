@@ -141,6 +141,14 @@ function startClock() {
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+function mdFormat(s) {
+  let out = esc(s);
+  out = out.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  return out;
+}
 const DOT_CLS = {1:'p1', 2:'p2', 3:'p3'};
 
 function catPod(name, color) {
@@ -160,7 +168,7 @@ async function loadTasks() {
       `<div class="task-row ${t.completed ? 'done-row':''}">
         <div class="task-check ${t.completed ? 'checked':''}" onclick="toggle(${t.id},${t.completed})"></div>
         <div class="pri-dot ${t.completed ? 'pd' : (DOT_CLS[t.priority]||'p2')}"></div>
-        <span class="task-name">${esc(t.name)}</span>
+        <span class="task-name">${mdFormat(t.name)}</span>
         ${t.cat_name ? catPod(t.cat_name, t.cat_color) : ''}
       </div>`
     ).join('');

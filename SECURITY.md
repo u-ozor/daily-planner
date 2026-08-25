@@ -29,6 +29,14 @@ All task text is treated as untrusted user input regardless of source.
 
 ---
 
+## Task Name Rendering (Inline Formatting)
+
+Task names support a small set of Obsidian-style inline markers (`**bold**`, `*italic*`, `~~strikethrough~~`), rendered as HTML in every window that displays task names.
+
+Rendering order is fixed and matters for safety: the raw task name is passed through the existing HTML-escaping function first (`&`, `<`, `>`, `"` become entities), and only then are the markdown regexes applied on top of the already-escaped string. A task name cannot inject real HTML tags — any `<`, `>`, or `"` a user types is neutralized before the formatting regexes ever run, so the regexes only ever wrap escaped, inert text in `<strong>`, `<em>`, or `<del>`.
+
+---
+
 ## Database
 
 - All queries use parameterized statements (SQLite `?` placeholders). No string-formatted SQL anywhere.
@@ -53,6 +61,7 @@ JS running in the webview can only call Python functions explicitly exposed on t
 - `get_weekly_backlog` — read weekly backlog
 - `get_week_overview` — read week grid data
 - `add_task(name, priority, scope)` — validated before DB write
+- `update_task_name(task_id, name)` — task_id validated as integer; name re-run through the same sanitization as `add_task` (control chars stripped, capped at 280 chars)
 - `mark_done(task_id)` — integer ID only
 - `unmark_done(task_id)` — integer ID only
 - `promote_task(task_id)` — weekly → today
@@ -61,6 +70,7 @@ JS running in the webview can only call Python functions explicitly exposed on t
 - `get_stats` — aggregate counts only
 - `get_categories` — read all categories (id, name, color)
 - `add_category(name, color)` — name sanitized (max 50 chars, control chars stripped); color validated as `#RRGGBB` hex, falls back to default if invalid; names are unique case-insensitively
+- `update_category_color(category_id, color)` — category_id validated as integer; color validated as `#RRGGBB` hex, falls back to default if invalid
 - `set_task_category(task_id, category_id)` — both validated as integers; category_id may be null to clear
 - `get_config` — scheduled times and theme
 - `save_config(morning_time, evening_time)` — HH:MM validated before plist write

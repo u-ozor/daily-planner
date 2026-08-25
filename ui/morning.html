@@ -119,7 +119,7 @@
     border-radius: 4px;
     margin: 0 2px;
     padding: 5px 4px;
-    min-height: 72px;
+    height: 96px;
     overflow: hidden;
     min-width: 0;
   }
@@ -144,7 +144,7 @@
   }
   .day-col.today .day-name { color: var(--accent); }
   .day-col.today .day-num  { color: var(--accent); }
-  .day-tasks { display: flex; flex-direction: column; gap: 2px; }
+  .day-tasks { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
   .day-dot   { display: flex; align-items: center; gap: 3px; overflow: hidden; }
   .dot-mark  { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
   .dot-mark.h    { background: var(--high); }
@@ -153,6 +153,7 @@
   .dot-mark.done { background: var(--done-text); }
   .dot-name      { font-size: 9px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dot-name.done { text-decoration: line-through; }
+  .day-more      { font-size: 8.5px; color: var(--muted); opacity: 0.8; margin-top: 1px; }
 
   /* ── Main split ── */
   .main { display: flex; flex: 1; overflow: hidden; }
@@ -204,6 +205,10 @@
 
   .task-name { flex: 1; font-size: 12.5px; line-height: 1.3; word-break: break-word; }
   .task-row.done-row .task-name { text-decoration: line-through; }
+  .task-edit-input {
+    width: 100%; background: var(--input-bg); border: 1px solid var(--accent);
+    border-radius: 3px; color: var(--text); font: inherit; padding: 1px 5px; outline: none;
+  }
 
   .task-btn {
     background: none; border: none; cursor: pointer;
@@ -287,6 +292,15 @@
   .cat-option:hover { background: var(--btn-hover); }
   .cat-option.selected { background: var(--btn-hover); font-weight: 600; }
   .cat-swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .cat-option-name { flex: 1; }
+  .cat-swatch-btn {
+    position: relative; width: 10px; height: 10px; flex-shrink: 0;
+    display: inline-block; cursor: pointer;
+  }
+  .cat-swatch-btn input[type="color"] {
+    position: absolute; top: -4px; left: -4px; width: 18px; height: 18px;
+    opacity: 0; cursor: pointer; border: none; padding: 0;
+  }
 
   .cat-divider { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
 
@@ -564,6 +578,16 @@ function esc(s) {
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// Obsidian-style inline formatting — escapes first, then applies markup
+// to already-escaped text, so there is no way to inject real tags.
+function mdFormat(s) {
+  let out = esc(s);
+  out = out.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  return out;
+}
+
 function showFeedback(msg, ok = true) {
   const el = document.getElementById('feedback');
   el.textContent = msg;
@@ -616,9 +640,13 @@ async function loadCategoryPicker() {
 
   const list = document.getElementById('cat-list');
   list.innerHTML = cats.map(c =>
-    `<div class="cat-option" data-id="${c.id}" onclick="selectCategory(${c.id},'${esc(c.color)}','${esc(c.name)}')">
-      <div class="cat-swatch" style="background:${esc(c.color)}"></div>
-      <span>${esc(c.name)}</span>
+    `<div class="cat-option" data-id="${c.id}">
+      <label class="cat-swatch-btn" title="Click to recolor" onclick="event.stopPropagation()">
+        <span class="cat-swatch" style="background:${esc(c.color)}"></span>
+        <input type="color" value="${esc(c.color)}" onclick="event.stopPropagation()"
+               onchange="recolorCategory(${c.id}, this.value)">
+      </label>
+      <span class="cat-option-name" onclick="selectCategory(${c.id},'${esc(c.color)}','${esc(c.name)}')">${esc(c.name)}</span>
     </div>`
   ).join('');
 
@@ -639,6 +667,21 @@ async function loadCategoryPicker() {
   `<label class="cat-color-custom" title="Custom color">
     <input type="color" value="${newCatColor}" oninput="pickNewCatColor(this.value)">
    </label>`;
+}
+
+async function recolorCategory(catId, color) {
+  try {
+    const res = await api().update_category_color(catId, color);
+    if (res.ok) {
+      if (selectedCatId === catId) {
+        selectedCatColor = color;
+        document.getElementById('cat-tag-btn').style.background = color;
+      }
+      await loadAll();
+    } else {
+      showFeedback(res.error || 'Error', false);
+    }
+  } catch(e) { showFeedback('Error', false); }
 }
 
 function pickNewCatColor(color) {
@@ -694,8 +737,13 @@ async function loadWeekGrid() {
   let days;
   try { days = await api().get_week_overview(); }
   catch(e) { return; }
+  const CAP = 4;
   document.getElementById('week-grid').innerHTML = days.map(d => {
-    const dots = d.tasks.map(t => {
+    // Reserve the last row for "+N more" when it's needed, so dots + label
+    // never exceed CAP rows of vertical space in the fixed-height day column.
+    const shown = d.tasks.length <= CAP ? d.tasks : d.tasks.slice(0, CAP - 1);
+    const extra = d.tasks.length - shown.length;
+    const dots = shown.map(t => {
       const dotStyle = t.cat_color
         ? `style="background:${esc(t.cat_color)}"` : '';
       const dotClass = t.completed ? 'dot-mark done' : `dot-mark ${DOT_CLS[t.priority]||'m'}`;
@@ -704,15 +752,16 @@ async function loadWeekGrid() {
         : `<div class="${dotClass}"></div>`;
       return `<div class="day-dot">
         ${dotFinal}
-        <span class="dot-name ${t.completed ? 'done' : ''}">${esc(t.name.slice(0,13))}</span>
+        <span class="dot-name ${t.completed ? 'done' : ''}">${mdFormat(t.name)}</span>
       </div>`;
     }).join('');
+    const more = extra > 0 ? `<div class="day-more">+${extra} more</div>` : '';
     return `<div class="day-col ${d.is_today ? 'today' : ''}">
       <div class="day-head">
         <span class="day-name">${esc(d.label)}</span>
         <span class="day-num">${d.day_num}</span>
       </div>
-      <div class="day-tasks">${dots}</div>
+      <div class="day-tasks">${dots}${more}</div>
     </div>`;
   }).join('');
 }
@@ -733,7 +782,7 @@ async function loadToday() {
     `<div class="task-row ${t.completed ? 'done-row' : ''}">
       <div class="task-check ${t.completed ? 'checked' : ''}" onclick="toggleDone(${t.id},${t.completed})"></div>
       <span class="pri-badge ${PRI_CLASS[t.priority]}">${PRI_LABEL[t.priority]}</span>
-      <span class="task-name">${esc(t.name)}</span>
+      <span class="task-name" data-name="${esc(t.name)}" ondblclick="startEditTask(event,${t.id})">${mdFormat(t.name)}</span>
       <div class="task-cat-wrap">
         ${t.cat_name
           ? `<span class="cat-pod" style="background:${esc(t.cat_color)}" title="Change category"
@@ -761,7 +810,7 @@ async function loadWeekly() {
   list.innerHTML = tasks.map(t =>
     `<div class="task-row">
       <span class="pri-badge ${PRI_CLASS[t.priority]}">${PRI_LABEL[t.priority]}</span>
-      <span class="task-name">${esc(t.name)}</span>
+      <span class="task-name" data-name="${esc(t.name)}" ondblclick="startEditTask(event,${t.id})">${mdFormat(t.name)}</span>
       <div class="task-cat-wrap">
         ${t.cat_name
           ? `<span class="cat-pod" style="background:${esc(t.cat_color)}" title="Change category"
@@ -807,6 +856,41 @@ async function demoteTask(id) {
 async function deleteTask(id) {
   try { await api().delete_task(id); await loadAll(); }
   catch(e) { showFeedback('Error', false); }
+}
+
+// ── Inline task-name editing (double-click) ──
+function startEditTask(e, id) {
+  const span = e.currentTarget;
+  if (span.querySelector('input')) return;
+  const rawName = span.dataset.name;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'task-edit-input';
+  input.maxLength = 280;
+  input.value = rawName;
+  span.textContent = '';
+  span.appendChild(input);
+  input.focus();
+  input.select();
+
+  let settled = false;
+  async function commit() {
+    if (settled) return;
+    settled = true;
+    const val = input.value.trim();
+    if (val && val !== rawName) {
+      try {
+        const res = await api().update_task_name(id, val);
+        if (!res.ok) showFeedback(res.error || 'Error', false);
+      } catch(err) { showFeedback('Error', false); }
+    }
+    await loadAll();
+  }
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+    else if (ev.key === 'Escape') { settled = true; loadAll(); }
+  });
+  input.addEventListener('blur', commit);
 }
 
 const TCP = document.getElementById('task-cat-portal');

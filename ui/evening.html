@@ -143,6 +143,10 @@
 
   .task-name { flex: 1; font-size: 12.5px; line-height: 1.3; word-break: break-word; }
   .task-row.done-row .task-name { text-decoration: line-through; }
+  .task-edit-input {
+    width: 100%; background: var(--input-bg); border: 1px solid var(--accent);
+    border-radius: 3px; color: var(--text); font: inherit; padding: 1px 5px; outline: none;
+  }
 
   .cat-pod {
     display: inline-flex; align-items: center;
@@ -330,6 +334,14 @@ document.querySelectorAll('.theme-btn').forEach(btn => {
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+function mdFormat(s) {
+  let out = esc(s);
+  out = out.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  return out;
+}
 const PRI_LABEL = {1:'H',2:'M',3:'L'};
 const PRI_CLASS = {1:'pri-1',2:'pri-2',3:'pri-3'};
 
@@ -375,7 +387,7 @@ async function loadToday() {
       `<div class="task-row ${t.completed ? 'done-row':''}">
         <div class="task-check ${t.completed ? 'checked':''}" onclick="toggleDone(${t.id},${t.completed})"></div>
         <span class="pri-badge ${PRI_CLASS[t.priority]}">${PRI_LABEL[t.priority]}</span>
-        <span class="task-name">${esc(t.name)}</span>
+        <span class="task-name" data-name="${esc(t.name)}" ondblclick="startEditTask(event,${t.id})">${mdFormat(t.name)}</span>
         ${t.cat_name ? catPod(t.cat_name, t.cat_color) : ''}
       </div>`
     ).join('');
@@ -392,7 +404,7 @@ async function loadWeekly() {
     list.innerHTML = tasks.map(t =>
       `<div class="task-row">
         <span class="pri-badge ${PRI_CLASS[t.priority]}">${PRI_LABEL[t.priority]}</span>
-        <span class="task-name">${esc(t.name)}</span>
+        <span class="task-name" data-name="${esc(t.name)}" ondblclick="startEditTask(event,${t.id})">${mdFormat(t.name)}</span>
         ${t.cat_name ? catPod(t.cat_name, t.cat_color) : ''}
         <button class="task-btn promote" onclick="promoteTask(${t.id})" title="Move to today">&#8593; today</button>
       </div>`
@@ -410,6 +422,37 @@ async function toggleDone(id, wasDone) {
 }
 async function promoteTask(id) {
   try { await api().promote_task(id); await loadAll(); } catch(e) {}
+}
+
+function startEditTask(e, id) {
+  const span = e.currentTarget;
+  if (span.querySelector('input')) return;
+  const rawName = span.dataset.name;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'task-edit-input';
+  input.maxLength = 280;
+  input.value = rawName;
+  span.textContent = '';
+  span.appendChild(input);
+  input.focus();
+  input.select();
+
+  let settled = false;
+  async function commit() {
+    if (settled) return;
+    settled = true;
+    const val = input.value.trim();
+    if (val && val !== rawName) {
+      try { await api().update_task_name(id, val); } catch(err) {}
+    }
+    await loadAll();
+  }
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+    else if (ev.key === 'Escape') { settled = true; loadAll(); }
+  });
+  input.addEventListener('blur', commit);
 }
 
 document.getElementById('btn-settings').addEventListener('click', () => {

@@ -27,15 +27,19 @@ LaunchAgent plists live in `~/Library/LaunchAgents/`.
 - Colored dot = planned, not completed (category color if assigned, otherwise priority color)
 - Grey dot = completed
 
+Each day column has a fixed height, capped at 4 visible rows. A day with more than 4 tasks shows its first 3 dots plus a `+N more` line instead of stretching the grid.
+
 Tasks moved to weekly by the 2AM agent (planned but not done) stay visible as uncompleted dots — they're part of the historical record. Tasks demoted back to weekly by you (a mistake, not a failure) disappear from the grid.
 
 **Today panel** — left side. Each task has:
 - A checkbox to mark done/undone
 - Priority badge (H / M / L)
+- Double-click the task name to edit it in place — Enter or clicking away saves, Esc cancels
 - `→w` button — moves the task back to weekly and removes it from the week grid (treats it as a planning mistake, not a failure)
 - `✕` button — deletes the task entirely
 
 **Weekly Backlog panel** — right side. Tasks accumulate here. Each has:
+- Double-click the task name to edit it in place, same as the Today panel
 - `↑ today` button — promotes to today's list
 - `✕` button — deletes
 
@@ -54,7 +58,15 @@ When the backlog reaches 10 or more items, a red warning appears: `Clean out you
 
 Optionally assign a **category** before adding: click the `🏷 Category` button next to the input, pick an existing category or create a new one with a name and color. The chosen category attaches to the task as a colored pill. On existing tasks, click the pill (or the tag icon if uncategorised) to change it inline.
 
-Categories are shared across all tasks and persist in the database. Two tasks can share the same category; category names are unique — creating one with the same name updates its color.
+Categories are shared across all tasks and persist in the database. Two tasks can share the same category; category names are unique — creating one with the same name updates its color. To recolor an existing category, click its color dot inside the category picker — this opens the native color picker and applies the new color to every task using that category, immediately.
+
+**Text formatting** — task names support a small set of Obsidian-style inline markers, rendered wherever a task name is displayed (Today, Weekly Backlog, Week at a Glance, Evening Review, and the pinned task tracker):
+
+| Syntax | Result |
+|---|---|
+| `**bold**` | **bold** |
+| `*italic*` | *italic* |
+| `~~strikethrough~~` | ~~strikethrough~~ |
 
 **Footer**
 - Theme switcher: Dark / Warm / Red
@@ -74,8 +86,8 @@ A small always-on-top window that stays visible throughout the day. Shows today'
 
 - Stats bar: tasks done / total for the day, progress bar, completion percentage
 - Dopamine summary: a completion message scaled to how much you got done
-- Today tasks: check off anything you finished late
-- Weekly backlog: promote tasks to today if needed
+- Today tasks: check off anything you finished late, double-click a name to edit it in place
+- Weekly backlog: promote tasks to today if needed, double-click a name to edit it in place
 - Week progress bar at the bottom
 
 ---

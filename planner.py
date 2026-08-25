@@ -179,7 +179,7 @@ class PlannerAPI:
                 FROM tasks t
                 LEFT JOIN categories c ON t.category_id = c.id
                 WHERE t.today_date=?
-                ORDER BY t.priority
+                ORDER BY t.completed, t.priority
             """, (ds,)).fetchall()
             result.append({
                 "date":     ds,
@@ -229,6 +229,26 @@ class PlannerAPI:
             "SELECT id FROM categories WHERE name=? COLLATE NOCASE", (name,)
         ).fetchone()
         return {"ok": True, "id": row["id"]}
+
+    def update_task_name(self, task_id, name):
+        tid = valid_task_id(task_id)
+        if tid is None:
+            return {"ok": False, "error": "invalid task id"}
+        name = clean_name(name)
+        if not name:
+            return {"ok": False, "error": "empty name"}
+        self._db.execute("UPDATE tasks SET name=? WHERE id=?", (name, tid))
+        self._db.commit()
+        return {"ok": True}
+
+    def update_category_color(self, category_id, color):
+        cid = valid_task_id(category_id)
+        if cid is None:
+            return {"ok": False, "error": "invalid category id"}
+        color = valid_color(color)
+        self._db.execute("UPDATE categories SET color=? WHERE id=?", (color, cid))
+        self._db.commit()
+        return {"ok": True}
 
     def set_task_category(self, task_id, category_id):
         tid = valid_task_id(task_id)
