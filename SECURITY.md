@@ -75,7 +75,8 @@ JS running in the webview can only call Python functions explicitly exposed on t
 - `get_config` — scheduled times and theme
 - `save_config(morning_time, evening_time)` — HH:MM validated before plist write
 - `save_theme(theme)` — validated against `('dark', 'warm', 'red')` allowlist
-- `open_pin_window` — spawns a subprocess with fixed arguments (no user input in the command)
+- `open_window(mode)` — spawns a subprocess for `morning`, `evening`, or `pin`; `mode` validated against that allowlist before being placed in the fixed argument list, so no arbitrary string reaches `subprocess.Popen`
+- `open_pin_window` — kept as an alias, delegates to `open_window("pin")`
 
 **Not exposed:** `os`, `subprocess` (except via `open_pin_window`'s fixed call), `eval`, `exec`, arbitrary file I/O, any Python import, shell passthrough.
 
@@ -107,9 +108,9 @@ Plist files are written with `ProgramArguments` containing the Python path and s
 
 ---
 
-## Pin Window Subprocess
+## Window-Opening Subprocess
 
-`open_pin_window` spawns `planner pin` as a detached subprocess using `subprocess.Popen` with a fixed argument list. The arguments are `[PYTHON_PATH, SCRIPT_PATH, "pin"]` — no user-supplied strings are passed. Stderr is captured to `~/Library/Application Support/DailyPlanner/pin.err` for diagnostics.
+`open_window(mode)` spawns `planner <mode>` as a detached subprocess using `subprocess.Popen`. `mode` is checked against the literal allowlist `("morning", "evening", "pin")` before use — no value the JS side sends can reach the argument list except one of those three literals. The resulting arguments are always `[PYTHON_PATH, SCRIPT_PATH, mode]`. Stderr is captured to `~/Library/Application Support/DailyPlanner/<mode>.err` for diagnostics. Used by the Pin buttons (morning, evening) and the cross-navigation buttons (Evening Review from morning, Morning Planner from evening).
 
 ---
 

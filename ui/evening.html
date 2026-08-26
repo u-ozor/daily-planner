@@ -183,6 +183,33 @@
   .week-prog-fill  { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.6s ease; }
   .week-prog-count { font-size: 10px; color: var(--muted); white-space: nowrap; }
 
+  /* ── Week completion chart ── */
+  .week-chart {
+    flex-shrink: 0; padding: 6px 16px 10px;
+    border-top: 1px solid var(--border); background: var(--surface);
+    display: flex; align-items: flex-end; gap: 8px; height: 64px;
+  }
+  .chart-day {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    gap: 4px; height: 100%; min-width: 0;
+  }
+  .chart-bar-track {
+    flex: 1; width: 100%; max-width: 22px; background: var(--border);
+    border-radius: 3px; display: flex; align-items: flex-end; overflow: hidden;
+  }
+  .chart-bar-fill { width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; transition: height 0.5s ease; }
+  .chart-bar-fill.today { background: var(--low); }
+  .chart-day-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .chart-day-label.today { color: var(--accent); font-weight: 600; }
+
+  #chart-tip-portal {
+    display: none; position: fixed;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 5px; padding: 4px 8px; font-size: 10.5px;
+    white-space: nowrap; box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 1000;
+  }
+  #chart-tip-portal.open { display: block; }
+
   /* ── Settings ── */
   .settings-panel {
     display: none; background: var(--surface);
@@ -279,6 +306,9 @@
   <span class="week-prog-count" id="week-count">–</span>
 </div>
 
+<div class="week-chart" id="week-chart"></div>
+<div id="chart-tip-portal"></div>
+
 <div class="settings-panel" id="settings-panel">
   <span class="settings-label">Morning</span>
   <input class="settings-input" id="morning-time" type="text" placeholder="07:30" maxlength="5">
@@ -292,6 +322,8 @@
 <div class="footer">
   <span class="footer-cmd">planner evening</span>
   <button class="footer-btn" id="btn-settings">&#9881; Settings</button>
+  <button class="footer-btn" id="btn-morning">&#9728; Morning Planner</button>
+  <button class="footer-btn" id="btn-pin">&#128204; Pin Task List</button>
   <div class="theme-group">
     <button class="theme-btn" data-t="dark">Dark</button>
     <button class="theme-btn" data-t="warm">Warm</button>
@@ -412,7 +444,46 @@ async function loadWeekly() {
   } catch(e) {}
 }
 
-async function loadAll() { await Promise.all([loadStats(), loadToday(), loadWeekly()]); }
+let weekChartData = [];
+
+async function loadWeekChart() {
+  let days;
+  try { days = await api().get_week_overview(); } catch(e) { return; }
+  weekChartData = days.map(d => {
+    const total = d.tasks.length;
+    const done  = d.tasks.filter(t => t.completed).length;
+    return { label: d.label, done, total };
+  });
+  const chart = document.getElementById('week-chart');
+  chart.innerHTML = weekChartData.map((d, i) => {
+    const pct = d.total ? Math.round(d.done / d.total * 100) : 0;
+    return `<div class="chart-day" onmouseenter="showChartTip(event,${i})" onmouseleave="hideChartTip()">
+      <div class="chart-bar-track">
+        <div class="chart-bar-fill ${days[i].is_today ? 'today' : ''}" style="height:${pct}%"></div>
+      </div>
+      <span class="chart-day-label ${days[i].is_today ? 'today' : ''}">${esc(d.label)}</span>
+    </div>`;
+  }).join('');
+}
+
+const CHART_TIP = document.getElementById('chart-tip-portal');
+
+function showChartTip(e, i) {
+  const d = weekChartData[i];
+  if (!d) return;
+  const pct = d.total ? Math.round(d.done / d.total * 100) : 0;
+  CHART_TIP.textContent = d.total ? `${d.label}: ${d.done}/${d.total} done (${pct}%)` : `${d.label}: no tasks`;
+  const rect = e.currentTarget.getBoundingClientRect();
+  CHART_TIP.style.left = Math.min(rect.left, window.innerWidth - 160) + 'px';
+  CHART_TIP.style.top  = (rect.top - 32) + 'px';
+  CHART_TIP.classList.add('open');
+}
+
+function hideChartTip() {
+  CHART_TIP.classList.remove('open');
+}
+
+async function loadAll() { await Promise.all([loadStats(), loadToday(), loadWeekly(), loadWeekChart()]); }
 
 async function toggleDone(id, wasDone) {
   try {
@@ -457,6 +528,12 @@ function startEditTask(e, id) {
 
 document.getElementById('btn-settings').addEventListener('click', () => {
   document.getElementById('settings-panel').classList.toggle('open');
+});
+document.getElementById('btn-morning').addEventListener('click', async () => {
+  try { await api().open_window('morning'); } catch(e) {}
+});
+document.getElementById('btn-pin').addEventListener('click', async () => {
+  try { await api().open_window('pin'); } catch(e) {}
 });
 document.getElementById('settings-save').addEventListener('click', async () => {
   const mt = document.getElementById('morning-time').value.trim();

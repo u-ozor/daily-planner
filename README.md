@@ -27,7 +27,7 @@ LaunchAgent plists live in `~/Library/LaunchAgents/`.
 - Colored dot = planned, not completed (category color if assigned, otherwise priority color)
 - Grey dot = completed
 
-Each day column has a fixed height, capped at 4 visible rows. A day with more than 4 tasks shows its first 3 dots plus a `+N more` line instead of stretching the grid.
+Each day column has a fixed height, capped at 4 visible rows. A day with more than 4 tasks shows its first 3 dots plus a `+N more` line instead of stretching the grid — hover `+N more` to see the rest of that day's tasks in a popover.
 
 Tasks moved to weekly by the 2AM agent (planned but not done) stay visible as uncompleted dots — they're part of the historical record. Tasks demoted back to weekly by you (a mistake, not a failure) disappear from the grid.
 
@@ -72,13 +72,14 @@ Categories are shared across all tasks and persist in the database. Two tasks ca
 - Theme switcher: Dark / Warm / Red
 - Settings: adjust morning/evening popup times (rewrites and reloads launchd plists — only this app's agents are affected)
 - Pin button: opens the pinned task tracker
+- Evening Review button: opens the evening window
 - `planner morning` — terminal fallback command shown for reference
 
 ---
 
 ### 2. Pinned Task Tracker (`planner pin`)
 
-A small always-on-top window that stays visible throughout the day. Shows today's tasks with live checkboxes. Can be opened from the morning window's Pin button or directly from the terminal. Refreshes automatically every 60 seconds.
+A small always-on-top window that stays visible throughout the day. Shows today's tasks with live checkboxes. Can be opened from the morning or evening window's Pin button, or directly from the terminal. Refreshes automatically every 60 seconds.
 
 ---
 
@@ -88,7 +89,9 @@ A small always-on-top window that stays visible throughout the day. Shows today'
 - Dopamine summary: a completion message scaled to how much you got done
 - Today tasks: check off anything you finished late, double-click a name to edit it in place
 - Weekly backlog: promote tasks to today if needed, double-click a name to edit it in place
-- Week progress bar at the bottom
+- Week progress bar at the bottom — `done/total` across everything planned this week (based on the day each task was scheduled for, so tasks the 2AM agent moved to the backlog for being unfinished still count against the week, not just completed ones)
+- Week completion chart: a Mon–Sun bar per day, height = % of that day's tasks completed; today's bar is a distinct color; hover a bar for the exact count
+- Footer: Morning Planner and Pin Task List buttons to jump to the other windows
 
 ---
 

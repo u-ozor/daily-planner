@@ -314,15 +314,20 @@ class PlannerAPI:
 
     def get_stats(self):
         today = str(date.today())
-        ws    = str(week_start_of(date.today()))
+        ws    = week_start_of(date.today())
+        we    = str(ws + timedelta(days=6))
+        ws    = str(ws)
         def count(q, *args):
             return self._db.execute(q, args).fetchone()[0]
         return {
             "total_today":   count("SELECT COUNT(*) FROM tasks WHERE today_date=?", today),
             "done_today":    count("SELECT COUNT(*) FROM tasks WHERE today_date=? AND completed=1", today),
             "weekly_count":  count("SELECT COUNT(*) FROM tasks WHERE scope='weekly' AND completed=0"),
-            "week_total":    count("SELECT COUNT(*) FROM tasks WHERE week_start=? AND scope='today'", ws),
-            "week_done":     count("SELECT COUNT(*) FROM tasks WHERE week_start=? AND scope='today' AND completed=1", ws),
+            # Filtered by today_date, not scope: the 2AM cleanup flips unfinished
+            # past-day tasks to scope='weekly' but keeps today_date, so counting
+            # by scope alone would silently drop abandoned tasks from the week rate.
+            "week_total":    count("SELECT COUNT(*) FROM tasks WHERE today_date BETWEEN ? AND ?", ws, we),
+            "week_done":     count("SELECT COUNT(*) FROM tasks WHERE today_date BETWEEN ? AND ? AND completed=1", ws, we),
         }
 
     def get_config(self):
@@ -351,9 +356,15 @@ class PlannerAPI:
         return {"ok": True}
 
     def open_pin_window(self):
-        log = open(str(DATA_DIR / "pin.err"), "w")
+        return self.open_window("pin")
+
+    def open_window(self, mode):
+        mode = str(mode)
+        if mode not in ("morning", "evening", "pin"):
+            return {"ok": False, "error": "invalid mode"}
+        log = open(str(DATA_DIR / f"{mode}.err"), "w")
         subprocess.Popen(
-            [str(PYTHON_PATH), str(SCRIPT_PATH), "pin"],
+            [str(PYTHON_PATH), str(SCRIPT_PATH), mode],
             start_new_session=True,
             stdout=log,
             stderr=log,

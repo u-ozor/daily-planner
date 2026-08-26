@@ -153,7 +153,19 @@
   .dot-mark.done { background: var(--done-text); }
   .dot-name      { font-size: 9px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dot-name.done { text-decoration: line-through; }
-  .day-more      { font-size: 8.5px; color: var(--muted); opacity: 0.8; margin-top: 1px; }
+  .day-more      { font-size: 8.5px; color: var(--muted); opacity: 0.8; margin-top: 1px; cursor: default; }
+  .day-more:hover { color: var(--accent); opacity: 1; }
+
+  #week-more-portal {
+    display: none; position: fixed;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; max-width: 200px;
+    max-height: 160px; overflow-y: auto;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 1000;
+  }
+  #week-more-portal.open { display: block; }
+  #week-more-portal .day-dot { padding: 2px 0; }
+  #week-more-portal .dot-name { font-size: 10px; white-space: normal; }
 
   /* ── Main split ── */
   .main { display: flex; flex: 1; overflow: hidden; }
@@ -439,6 +451,8 @@
 
 <!-- Portal for task category picker — lives at body level to escape overflow clipping -->
 <div id="task-cat-portal"></div>
+<!-- Portal for "+N more" week-grid hover popover — same reason -->
+<div id="week-more-portal"></div>
 
 <div class="header">
   <div>
@@ -520,6 +534,7 @@
   <span class="footer-cmd">planner morning</span>
   <button class="footer-btn" id="btn-settings">&#9881; Settings</button>
   <button class="footer-btn" id="btn-pin">&#128204; Pin Task List</button>
+  <button class="footer-btn" id="btn-evening">&#127769; Evening Review</button>
   <div class="theme-group">
     <button class="theme-btn" data-t="dark">Dark</button>
     <button class="theme-btn" data-t="warm">Warm</button>
@@ -733,29 +748,37 @@ document.getElementById('cat-tag-btn').addEventListener('click', (e) => {
 });
 
 // ── Week grid ──
+function dayDotHtml(t) {
+  const dotStyle = t.cat_color ? `style="background:${esc(t.cat_color)}"` : '';
+  const dotClass = t.completed ? 'dot-mark done' : `dot-mark ${DOT_CLS[t.priority]||'m'}`;
+  const dotFinal = t.cat_color && !t.completed
+    ? `<div class="dot-mark" ${dotStyle}></div>`
+    : `<div class="${dotClass}"></div>`;
+  return `<div class="day-dot">
+    ${dotFinal}
+    <span class="dot-name ${t.completed ? 'done' : ''}">${mdFormat(t.name)}</span>
+  </div>`;
+}
+
+let weekMoreHidden = []; // per-day array of the tasks not shown as dots, indexed to match week-grid children
+
 async function loadWeekGrid() {
   let days;
   try { days = await api().get_week_overview(); }
   catch(e) { return; }
   const CAP = 4;
+  weekMoreHidden = [];
   document.getElementById('week-grid').innerHTML = days.map(d => {
     // Reserve the last row for "+N more" when it's needed, so dots + label
     // never exceed CAP rows of vertical space in the fixed-height day column.
     const shown = d.tasks.length <= CAP ? d.tasks : d.tasks.slice(0, CAP - 1);
     const extra = d.tasks.length - shown.length;
-    const dots = shown.map(t => {
-      const dotStyle = t.cat_color
-        ? `style="background:${esc(t.cat_color)}"` : '';
-      const dotClass = t.completed ? 'dot-mark done' : `dot-mark ${DOT_CLS[t.priority]||'m'}`;
-      const dotFinal = t.cat_color && !t.completed
-        ? `<div class="dot-mark" ${dotStyle}></div>`
-        : `<div class="${dotClass}"></div>`;
-      return `<div class="day-dot">
-        ${dotFinal}
-        <span class="dot-name ${t.completed ? 'done' : ''}">${mdFormat(t.name)}</span>
-      </div>`;
-    }).join('');
-    const more = extra > 0 ? `<div class="day-more">+${extra} more</div>` : '';
+    const dots = shown.map(dayDotHtml).join('');
+    const dayIdx = weekMoreHidden.length;
+    weekMoreHidden.push(d.tasks.slice(shown.length));
+    const more = extra > 0
+      ? `<div class="day-more" onmouseenter="showMoreTasks(event,${dayIdx})" onmouseleave="hideMoreTasks()">+${extra} more</div>`
+      : '';
     return `<div class="day-col ${d.is_today ? 'today' : ''}">
       <div class="day-head">
         <span class="day-name">${esc(d.label)}</span>
@@ -764,6 +787,22 @@ async function loadWeekGrid() {
       <div class="day-tasks">${dots}${more}</div>
     </div>`;
   }).join('');
+}
+
+const WMP = document.getElementById('week-more-portal');
+
+function showMoreTasks(e, dayIdx) {
+  const hidden = weekMoreHidden[dayIdx] || [];
+  if (!hidden.length) return;
+  WMP.innerHTML = hidden.map(dayDotHtml).join('');
+  const rect = e.currentTarget.getBoundingClientRect();
+  WMP.style.left = Math.min(rect.left, window.innerWidth - 210) + 'px';
+  WMP.style.top  = (rect.bottom + 4) + 'px';
+  WMP.classList.add('open');
+}
+
+function hideMoreTasks() {
+  WMP.classList.remove('open');
 }
 
 // ── Today list ──
@@ -1003,9 +1042,12 @@ document.getElementById('task-input').addEventListener('keydown', (e) => {
 });
 document.getElementById('send-btn').addEventListener('click', submitInput);
 
-// ── Pin window ──
+// ── Window navigation ──
 document.getElementById('btn-pin').addEventListener('click', async () => {
-  try { await api().open_pin_window(); } catch(e) {}
+  try { await api().open_window('pin'); } catch(e) {}
+});
+document.getElementById('btn-evening').addEventListener('click', async () => {
+  try { await api().open_window('evening'); } catch(e) {}
 });
 
 // ── Settings ──
