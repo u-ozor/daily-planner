@@ -184,23 +184,41 @@
   .week-prog-count { font-size: 10px; color: var(--muted); white-space: nowrap; }
 
   /* ── Week completion chart ── */
+  .chart-head {
+    flex-shrink: 0; padding: 6px 16px 0;
+    border-top: 1px solid var(--border); background: var(--surface);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .chart-title { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .range-group { display: flex; gap: 4px; }
+  .range-btn {
+    background: none; border: 1px solid var(--border);
+    border-radius: 4px; color: var(--muted); font-size: 10px;
+    padding: 2px 8px; cursor: pointer; transition: all 0.1s;
+  }
+  .range-btn:hover  { border-color: var(--accent); color: var(--text); }
+  .range-btn.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
   .week-chart {
     flex-shrink: 0; padding: 6px 16px 10px;
-    border-top: 1px solid var(--border); background: var(--surface);
+    background: var(--surface);
     display: flex; align-items: flex-end; gap: 8px; height: 64px;
   }
+  .week-chart.compact { gap: 3px; }
   .chart-day {
     flex: 1; display: flex; flex-direction: column; align-items: center;
-    gap: 4px; height: 100%; min-width: 0;
+    gap: 4px; height: 100%; min-width: 0; cursor: pointer;
   }
   .chart-bar-track {
     flex: 1; width: 100%; max-width: 22px; background: var(--border);
     border-radius: 3px; display: flex; align-items: flex-end; overflow: hidden;
   }
+  .week-chart.compact .chart-bar-track { max-width: 12px; border-radius: 2px; }
   .chart-bar-fill { width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; transition: height 0.5s ease; }
   .chart-bar-fill.today { background: var(--low); }
   .chart-day-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
   .chart-day-label.today { color: var(--accent); font-weight: 600; }
+  .week-chart.compact .chart-day-label { font-size: 7.5px; letter-spacing: 0; }
 
   #chart-tip-portal {
     display: none; position: fixed;
@@ -209,6 +227,22 @@
     white-space: nowrap; box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 1000;
   }
   #chart-tip-portal.open { display: block; }
+
+  /* ── Day detail popover ── */
+  #day-detail-portal {
+    display: none; position: fixed;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px; width: 220px;
+    max-height: 260px; overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35); z-index: 1000;
+  }
+  #day-detail-portal.open { display: block; }
+  .day-detail-title {
+    font-size: 11px; font-weight: 600; color: var(--text);
+    padding-bottom: 5px; margin-bottom: 5px; border-bottom: 1px solid var(--border);
+  }
+  #day-detail-portal .task-row { padding: 3px 2px; }
+  #day-detail-portal .task-name { font-size: 11.5px; }
 
   /* ── Settings ── */
   .settings-panel {
@@ -306,8 +340,20 @@
   <span class="week-prog-count" id="week-count">–</span>
 </div>
 
+<div class="chart-head">
+  <span class="chart-title">Completion chart</span>
+  <div class="range-group" id="range-group">
+    <button class="range-btn active" data-w="1">Week</button>
+    <button class="range-btn" data-w="2">2 Weeks</button>
+    <button class="range-btn" data-w="4">Month</button>
+  </div>
+</div>
 <div class="week-chart" id="week-chart"></div>
 <div id="chart-tip-portal"></div>
+<div id="day-detail-portal">
+  <div class="day-detail-title" id="day-detail-title"></div>
+  <div id="day-detail-body"></div>
+</div>
 
 <div class="settings-panel" id="settings-panel">
   <span class="settings-label">Morning</span>
@@ -445,26 +491,41 @@ async function loadWeekly() {
 }
 
 let weekChartData = [];
+let chartRangeWeeks = 1;
 
 async function loadWeekChart() {
   let days;
-  try { days = await api().get_week_overview(); } catch(e) { return; }
+  try { days = await api().get_period_overview(chartRangeWeeks); } catch(e) { return; }
+  const compact = chartRangeWeeks > 1;
   weekChartData = days.map(d => {
     const total = d.tasks.length;
     const done  = d.tasks.filter(t => t.completed).length;
-    return { label: d.label, done, total };
+    const dateObj = new Date(d.date + 'T00:00:00');
+    const fullLabel = dateObj.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+    return { label: d.label, dayNum: d.day_num, fullLabel, isToday: d.is_today, done, total, tasks: d.tasks };
   });
   const chart = document.getElementById('week-chart');
+  chart.className = 'week-chart' + (compact ? ' compact' : '');
   chart.innerHTML = weekChartData.map((d, i) => {
     const pct = d.total ? Math.round(d.done / d.total * 100) : 0;
-    return `<div class="chart-day" onmouseenter="showChartTip(event,${i})" onmouseleave="hideChartTip()">
+    const label = compact ? d.dayNum : d.label;
+    return `<div class="chart-day" onclick="showDayDetail(event,${i})" onmouseenter="showChartTip(event,${i})" onmouseleave="hideChartTip()">
       <div class="chart-bar-track">
-        <div class="chart-bar-fill ${days[i].is_today ? 'today' : ''}" style="height:${pct}%"></div>
+        <div class="chart-bar-fill ${d.isToday ? 'today' : ''}" style="height:${pct}%"></div>
       </div>
-      <span class="chart-day-label ${days[i].is_today ? 'today' : ''}">${esc(d.label)}</span>
+      <span class="chart-day-label ${d.isToday ? 'today' : ''}">${esc(label)}</span>
     </div>`;
   }).join('');
 }
+
+document.getElementById('range-group').addEventListener('click', (e) => {
+  const btn = e.target.closest('.range-btn');
+  if (!btn) return;
+  chartRangeWeeks = parseInt(btn.dataset.w, 10) || 1;
+  document.querySelectorAll('.range-btn').forEach(b => b.classList.toggle('active', b === btn));
+  hideDayDetail();
+  loadWeekChart();
+});
 
 const CHART_TIP = document.getElementById('chart-tip-portal');
 
@@ -472,7 +533,7 @@ function showChartTip(e, i) {
   const d = weekChartData[i];
   if (!d) return;
   const pct = d.total ? Math.round(d.done / d.total * 100) : 0;
-  CHART_TIP.textContent = d.total ? `${d.label}: ${d.done}/${d.total} done (${pct}%)` : `${d.label}: no tasks`;
+  CHART_TIP.textContent = d.total ? `${d.fullLabel}: ${d.done}/${d.total} done (${pct}%)` : `${d.fullLabel}: no tasks`;
   const rect = e.currentTarget.getBoundingClientRect();
   CHART_TIP.style.left = Math.min(rect.left, window.innerWidth - 160) + 'px';
   CHART_TIP.style.top  = (rect.top - 32) + 'px';
@@ -482,6 +543,37 @@ function showChartTip(e, i) {
 function hideChartTip() {
   CHART_TIP.classList.remove('open');
 }
+
+const DAY_DETAIL = document.getElementById('day-detail-portal');
+
+function showDayDetail(e, i) {
+  const d = weekChartData[i];
+  if (!d) return;
+  hideChartTip();
+  document.getElementById('day-detail-title').textContent =
+    `${d.fullLabel} — ${d.done}/${d.total} done`;
+  const body = document.getElementById('day-detail-body');
+  body.innerHTML = d.tasks.length ? d.tasks.map(t =>
+    `<div class="task-row ${t.completed ? 'done-row':''}">
+      <span class="pri-badge ${PRI_CLASS[t.priority]}">${PRI_LABEL[t.priority]}</span>
+      <span class="task-name">${mdFormat(t.name)}</span>
+    </div>`
+  ).join('') : '<div class="empty-state">Nothing was scheduled this day.</div>';
+  const rect = e.currentTarget.getBoundingClientRect();
+  DAY_DETAIL.style.left = Math.min(rect.left, window.innerWidth - 230) + 'px';
+  DAY_DETAIL.style.top  = Math.max(8, rect.top - 268) + 'px';
+  DAY_DETAIL.classList.add('open');
+}
+
+function hideDayDetail() {
+  DAY_DETAIL.classList.remove('open');
+}
+
+document.addEventListener('click', (e) => {
+  if (!DAY_DETAIL.classList.contains('open')) return;
+  if (DAY_DETAIL.contains(e.target) || e.target.closest('.chart-day')) return;
+  hideDayDetail();
+});
 
 async function loadAll() { await Promise.all([loadStats(), loadToday(), loadWeekly(), loadWeekChart()]); }
 

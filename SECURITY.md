@@ -59,7 +59,8 @@ JS running in the webview can only call Python functions explicitly exposed on t
 **Exposed methods:**
 - `get_today_tasks` — read today's tasks
 - `get_weekly_backlog` — read weekly backlog
-- `get_week_overview` — read week grid data
+- `get_week_overview` — read week grid data (delegates to `get_period_overview(1)`)
+- `get_period_overview(num_weeks)` — read-only, same query as `get_week_overview` extended backward by full weeks; `num_weeks` is coerced to int and clamped to 1–5 so an invalid or oversized value can't trigger an unbounded date range or query loop
 - `add_task(name, priority, scope)` — validated before DB write
 - `update_task_name(task_id, name)` — task_id validated as integer; name re-run through the same sanitization as `add_task` (control chars stripped, capped at 280 chars)
 - `mark_done(task_id)` — integer ID only

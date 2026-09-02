@@ -185,6 +185,36 @@ async function toggle(id, wasDone) {
 document.getElementById('refresh-btn').addEventListener('click', loadTasks);
 setInterval(loadTasks, 60000);
 
+// ── Zoom (Cmd+= / Cmd+- / Cmd+0) ──
+const BASE_TITLE = 'Tasks — Today';
+const ZOOM_MIN = 0.7, ZOOM_MAX = 1.8, ZOOM_STEP = 0.1;
+let zoomLevel = 1;
+let zoomTitleTimer = null;
+
+function applyZoom() {
+  document.body.style.zoom = zoomLevel;
+  document.title = `${BASE_TITLE} (${Math.round(zoomLevel * 100)}%)`;
+  clearTimeout(zoomTitleTimer);
+  zoomTitleTimer = setTimeout(() => { document.title = BASE_TITLE; }, 1200);
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!e.metaKey) return;
+  if (e.key === '=' || e.key === '+') {
+    e.preventDefault();
+    zoomLevel = Math.min(ZOOM_MAX, +(zoomLevel + ZOOM_STEP).toFixed(2));
+    applyZoom();
+  } else if (e.key === '-') {
+    e.preventDefault();
+    zoomLevel = Math.max(ZOOM_MIN, +(zoomLevel - ZOOM_STEP).toFixed(2));
+    applyZoom();
+  } else if (e.key === '0') {
+    e.preventDefault();
+    zoomLevel = 1;
+    applyZoom();
+  }
+});
+
 async function init() {
   startClock();
   try {

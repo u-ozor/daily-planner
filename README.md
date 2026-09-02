@@ -81,6 +81,8 @@ Categories are shared across all tasks and persist in the database. Two tasks ca
 
 A small always-on-top window that stays visible throughout the day. Shows today's tasks with live checkboxes. Can be opened from the morning or evening window's Pin button, or directly from the terminal. Refreshes automatically every 60 seconds.
 
+Zoom the text/layout with `Cmd +` / `Cmd -` (`Cmd 0` resets to 100%). The window title briefly shows the current zoom level, then reverts. Zoom is a client-side setting for that window session only — it isn't saved, so a freshly opened pin window always starts at 100%.
+
 ---
 
 ### 3. Evening Window (`planner evening`)
@@ -90,7 +92,8 @@ A small always-on-top window that stays visible throughout the day. Shows today'
 - Today tasks: check off anything you finished late, double-click a name to edit it in place
 - Weekly backlog: promote tasks to today if needed, double-click a name to edit it in place
 - Week progress bar at the bottom — `done/total` across everything planned this week (based on the day each task was scheduled for, so tasks the 2AM agent moved to the backlog for being unfinished still count against the week, not just completed ones)
-- Week completion chart: a Mon–Sun bar per day, height = % of that day's tasks completed; today's bar is a distinct color; hover a bar for the exact count
+- Week completion chart: a bar per day, height = % of that day's tasks completed; today's bar is a distinct color; hover a bar for the exact done/total count, click a bar to see the actual tasks scheduled that day (including ones never completed)
+- Chart range toggle: Week / 2 Weeks / Month, switching how far back the completion chart reaches
 - Footer: Morning Planner and Pin Task List buttons to jump to the other windows
 
 ---

@@ -167,11 +167,19 @@ class PlannerAPI:
         return [dict(r) for r in rows]
 
     def get_week_overview(self):
+        return self.get_period_overview(1)
+
+    def get_period_overview(self, num_weeks=1):
+        try:
+            n = int(num_weeks)
+        except (TypeError, ValueError):
+            n = 1
+        n = max(1, min(n, 5))  # cap ~5 weeks so a bad value can't trigger an unbounded scan
         today = date.today()
-        ws = week_start_of(today)
+        start = week_start_of(today) - timedelta(weeks=n - 1)
         result = []
-        for i in range(7):
-            d = ws + timedelta(days=i)
+        for i in range(n * 7):
+            d = start + timedelta(days=i)
             ds = str(d)
             rows = self._db.execute("""
                 SELECT t.id, t.name, t.priority, t.completed,
