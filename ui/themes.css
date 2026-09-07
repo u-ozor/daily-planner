@@ -1,0 +1,241 @@
+/* ── Daily Planner — shared theme definitions ──────────────────────────────
+   Single source of truth for every theme's CSS custom properties and any
+   animated background treatment. Injected into morning/evening/pin's HTML
+   at launch by planner.py (run_window), replacing the /* @@THEMES_CSS@@ * /
+   marker in each file's <style> block — see that function for why this is
+   spliced in as text rather than loaded via <link>: pywebview is handed
+   each window's HTML as an in-memory string (no file:// base URL), which is
+   what makes relative-path stylesheet links unreliable here.
+
+   Not every window's markup uses every variable below (pin.html, for
+   instance, has no --today-col/--today-bdr concept) — that's fine, unused
+   custom properties cost nothing. The animated "chrome bar" treatment
+   targets a shared `.theme-bar` class applied to each window's header/
+   footer/etc in its own markup, rather than listing every window's class
+   names here — see the comment above those rules for why.
+──────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --bg:        #2a2a2e;
+  --surface:   #36363c;
+  --border:    #4a4a52;
+  --accent:    #6aaef0;
+  --text:      #eaeaee;
+  --muted:     #909098;
+  --high:      #f07878;
+  --med:       #e8bc50;
+  --low:       #74cc7c;
+  --done-text: #707078;
+  --warn:      #f07878;
+  --today-col: #263244;
+  --today-bdr: #6aaef0;
+  --input-bg:  #202024;
+  --btn-hover: #404048;
+}
+
+html[data-theme="warm"] {
+  --bg:        #fdf5e6;
+  --surface:   #f5e8cf;
+  --border:    #ddd0b8;
+  --accent:    #7a5c38;
+  --text:      #2a1e0e;
+  --muted:     #9a8060;
+  --high:      #cc3030;
+  --med:       #b07820;
+  --low:       #4a7a40;
+  --done-text: #b0a090;
+  --warn:      #cc3030;
+  --today-col: #ffefd6;
+  --today-bdr: #c89050;
+  --input-bg:  #fffaf2;
+  --btn-hover: #ecddc4;
+}
+
+/* Nebula — a blend of red, pink and lavender into one flowing dusk-cloud theme */
+html[data-theme="nebula"] {
+  --bg:        #f7eef5;
+  --surface:   #f0dcee;
+  --border:    #dcb9da;
+  --accent:    #b8408a;
+  --text:      #2e1330;
+  --muted:     #9c7a9a;
+  --high:      #c23155;
+  --med:       #b8642e;
+  --low:       #4a7a52;
+  --done-text: #b89ab5;
+  --warn:      #c23155;
+  --today-col: #f6d9ee;
+  --today-bdr: #b8408a;
+  --input-bg:  #fdf6fc;
+  --btn-hover: #e6cce3;
+}
+
+/* Silver/Gold — dual-tone: cool silver neutrals + a genuinely gold accent */
+html[data-theme="silvergold"] {
+  --bg:        #e4e6e9;
+  --surface:   #d1d5da;
+  --border:    #aeb4bb;
+  --accent:    #d9a441;
+  --text:      #23262b;
+  --muted:     #7d838a;
+  --high:      #b5423f;
+  --med:       #b8842a;
+  --low:       #4d7a52;
+  --done-text: #9aa0a6;
+  --warn:      #b5423f;
+  --today-col: #f7ecc8;
+  --today-bdr: #d9a441;
+  --input-bg:  #eef0f2;
+  --btn-hover: #c3c8ce;
+}
+
+/* Starlight — dark sky, twinkling starfield */
+html[data-theme="starlight"] {
+  --bg:        #0d0e18;
+  --surface:   #171a2b;
+  --border:    #2a2f47;
+  --accent:    #8fb8ff;
+  --text:      #e8ecfa;
+  --muted:     #7d84a8;
+  --high:      #ff6b6b;
+  --med:       #ffd166;
+  --low:       #6bcf8f;
+  --done-text: #4d5270;
+  --warn:      #ff6b6b;
+  --today-col: #1c2140;
+  --today-bdr: #8fb8ff;
+  --input-bg:  #0a0b14;
+  --btn-hover: #232746;
+}
+
+/* Ember — dark, warm, flowing like glowing coals */
+html[data-theme="ember"] {
+  --bg:        #221210;
+  --surface:   #331c16;
+  --border:    #4a2a1e;
+  --accent:    #ff8c42;
+  --text:      #ffe8d6;
+  --muted:     #b0806a;
+  --high:      #ff5a5a;
+  --med:       #ffb347;
+  --low:       #7fcf8f;
+  --done-text: #7a5a4e;
+  --warn:      #ff5a5a;
+  --today-col: #4a2416;
+  --today-bdr: #ff8c42;
+  --input-bg:  #1a0e0c;
+  --btn-hover: #402420;
+}
+
+/* Shared flow keyframe reused by every animated-gradient theme below */
+@keyframes theme-flow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes star-twinkle {
+  0%   { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+/* Slides the starfield by exactly one tile (340x180, matching background-size
+   below) so the repeat seam is invisible — reads as endless drift, not a loop */
+@keyframes star-drift {
+  from { background-position: 0 0; }
+  to   { background-position: 340px 180px; }
+}
+
+/* Every "chrome bar" element (header/footer/week-section/etc, across all three
+   windows) carries class="theme-bar" in the markup — one hook instead of a
+   per-window class list here, and it lets the text-shadow rule below target
+   `.theme-bar *` so it reaches text inside <button>/<input> too. WebKit's
+   native button/input rendering doesn't reliably inherit text-shadow from an
+   ancestor (that's why buttons looked unshadowed against the flow before) —
+   setting it directly on every descendant sidesteps that instead of fighting it. */
+
+/* A translucent dark scrim under the flow caps how bright any single frame of
+   the animation can get behind text — without it, the pastel end of a cycle
+   goes bright enough to wash out text contrast (this was the "white center"
+   / peak-brightness readability issue). Applies uniformly so no bar is a
+   readability outlier. */
+html[data-theme="silvergold"] .theme-bar {
+  background:
+    linear-gradient(rgba(0,0,0,0.30), rgba(0,0,0,0.30)),
+    linear-gradient(120deg, #eef0f2 0%, #fce9a8 20%, #c3c8ce 45%, #9aa4ad 70%, #aeb4bb 100%);
+  background-size: auto, 300% 300%;
+  animation: theme-flow 16s ease-in-out infinite;
+}
+html[data-theme="ember"] .theme-bar {
+  /* First/last stop deliberately kept off #ff8c42 (--accent) so accent-colored
+     text never goes fully invisible against a matching background frame */
+  background:
+    linear-gradient(rgba(0,0,0,0.30), rgba(0,0,0,0.30)),
+    linear-gradient(120deg, #ffa35c 0%, #ff5a5a 25%, #ffb347 50%, #c0392b 75%, #ffa35c 100%);
+  background-size: auto, 300% 300%;
+  animation: theme-flow 12s ease-in-out infinite;
+}
+/* Two real dark stops (#35102c, #241638) woven between the bright rose/violet
+   ones — the first pass was bright/pastel the whole way round, which read as
+   overall too bright regardless of which point in the cycle you caught it */
+html[data-theme="nebula"] .theme-bar {
+  background:
+    linear-gradient(rgba(0,0,0,0.30), rgba(0,0,0,0.30)),
+    linear-gradient(120deg, #35102c 0%, #d162a0 25%, #241638 50%, #9a6cc4 75%, #35102c 100%);
+  background-size: auto, 300% 300%;
+  animation: theme-flow 18s ease-in-out infinite;
+}
+html[data-theme="silvergold"] .theme-bar,
+html[data-theme="silvergold"] .theme-bar *,
+html[data-theme="ember"] .theme-bar,
+html[data-theme="ember"] .theme-bar *,
+html[data-theme="nebula"] .theme-bar,
+html[data-theme="nebula"] .theme-bar * {
+  text-shadow: 0 1px 2px rgba(0,0,0,0.55), 0 0 5px rgba(0,0,0,0.3);
+}
+
+html[data-theme="silvergold"] body {
+  background: linear-gradient(135deg, #e9ebee 0%, #f7ecc8 30%, #dfe2e6 55%, #eecf83 80%, #e9ebee 100%);
+  background-size: 300% 300%;
+  animation: theme-flow 22s ease-in-out infinite;
+}
+/* Nebula body — same two dark stops as the chrome bars, same reason: kept
+   entirely to pastel/near-white before, which read as "too bright" overall
+   no matter where the animation was in its cycle. Body text (task names etc,
+   which sit directly on this with no background of their own) gets a dual
+   dark+light halo so it stays legible whether the instant behind it is the
+   dark or the bright half of the cycle — a single fixed --text color can't
+   win against both. */
+html[data-theme="nebula"] body {
+  background: linear-gradient(135deg, #35102c 0%, #c9375c 25%, #241638 50%, #9165c9 75%, #35102c 100%);
+  background-size: 300% 300%;
+  animation: theme-flow 26s ease-in-out infinite;
+  text-shadow: 0 0 3px rgba(0,0,0,0.5), 0 0 4px rgba(255,255,255,0.45);
+}
+
+/* Starlight — layered tiny radial-gradient "stars", tiled and drifting slowly
+   across both the body (task-list area) and the chrome bars. Same tile in
+   both places on purpose: a smaller/denser tile for the short chrome bars
+   made the repeat obvious (5 stars packed into 240px repeats fast across a
+   wide bar) — reusing the sparser 340x180 body tile repeats less noticeably,
+   and the drift animation (not just the opacity twinkle) is what actually
+   reads as motion rather than a static pattern that merely pulses brightness. */
+html[data-theme="starlight"] body,
+html[data-theme="starlight"] .theme-bar {
+  background-image:
+    radial-gradient(1px 1px at 20px 30px,  #ffffff 100%, transparent),
+    radial-gradient(1px 1px at 90px 70px,  #ffffff 100%, transparent),
+    radial-gradient(1.5px 1.5px at 150px 25px, #cfe0ff 100%, transparent),
+    radial-gradient(1px 1px at 210px 100px, #ffffff 100%, transparent),
+    radial-gradient(2px 2px at 260px 50px, #ffe9a8 100%, transparent),
+    radial-gradient(1px 1px at 40px 130px, #ffffff 100%, transparent),
+    radial-gradient(1.5px 1.5px at 310px 150px, #cfe0ff 100%, transparent);
+  background-repeat: repeat;
+  background-size: 340px 180px;
+  animation: star-twinkle 4s ease-in-out infinite alternate,
+             star-drift 80s linear infinite;
+}
+html[data-theme="starlight"] body       { background-color: #0d0e18; }
+html[data-theme="starlight"] .theme-bar { background-color: #171a2b; }
+html[data-theme="starlight"] .theme-bar,
+html[data-theme="starlight"] .theme-bar * {
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5), 0 0 4px rgba(0,0,0,0.25);
+}

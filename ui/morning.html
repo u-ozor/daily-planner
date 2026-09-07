@@ -6,63 +6,7 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* ── Dark theme (default) ── */
-  :root {
-    --bg:        #2a2a2e;
-    --surface:   #36363c;
-    --border:    #4a4a52;
-    --accent:    #6aaef0;
-    --text:      #eaeaee;
-    --muted:     #909098;
-    --high:      #f07878;
-    --med:       #e8bc50;
-    --low:       #74cc7c;
-    --done-text: #707078;
-    --warn:      #f07878;
-    --today-col: #263244;
-    --today-bdr: #6aaef0;
-    --input-bg:  #202024;
-    --btn-hover: #404048;
-  }
-
-  /* ── Warm white theme ── */
-  html[data-theme="warm"] {
-    --bg:        #fdf5e6;
-    --surface:   #f5e8cf;
-    --border:    #ddd0b8;
-    --accent:    #7a5c38;
-    --text:      #2a1e0e;
-    --muted:     #9a8060;
-    --high:      #cc3030;
-    --med:       #b07820;
-    --low:       #4a7a40;
-    --done-text: #b0a090;
-    --warn:      #cc3030;
-    --today-col: #ffefd6;
-    --today-bdr: #c89050;
-    --input-bg:  #fffaf2;
-    --btn-hover: #ecddc4;
-  }
-
-  /* ── Red light theme ── */
-  html[data-theme="red"] {
-    --bg:        #fff0f0;
-    --surface:   #fcd8d8;
-    --border:    #e8b0b0;
-    --accent:    #c02020;
-    --text:      #280808;
-    --muted:     #a06060;
-    --high:      #d01010;
-    --med:       #c06820;
-    --low:       #406830;
-    --done-text: #c09090;
-    --warn:      #d01010;
-    --today-col: #ffc8c8;
-    --today-bdr: #c02020;
-    --input-bg:  #fff5f5;
-    --btn-hover: #f4c8c8;
-  }
-
+  /* @@THEMES_CSS@@ */
   body {
     background: var(--bg);
     color: var(--text);
@@ -144,6 +88,27 @@
   }
   .day-col.today .day-name { color: var(--accent); }
   .day-col.today .day-num  { color: var(--accent); }
+
+  /* Silver/Gold — the "today" cell flips which metal is background vs text as
+     it animates, instead of sitting as one flat gold-on-gold combo. Doesn't
+     touch the theme's base palette (still --today-col/--today-bdr/--accent
+     everywhere else) — this is a one-off flourish on the single most-glanced-at
+     cell in the week grid. */
+  html[data-theme="silvergold"] .day-col.today {
+    animation: sg-today-bg 12s ease-in-out infinite;
+  }
+  html[data-theme="silvergold"] .day-col.today .day-name,
+  html[data-theme="silvergold"] .day-col.today .day-num {
+    animation: sg-today-text 12s ease-in-out infinite;
+  }
+  @keyframes sg-today-bg {
+    0%, 100% { background-color: #f2c869; border-color: #8a5a0a; }
+    50%      { background-color: #c7ccd1; border-color: #4a4f57; }
+  }
+  @keyframes sg-today-text {
+    0%, 100% { color: #4a4f57; }
+    50%      { color: #8a5a0a; }
+  }
   .day-tasks { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
   .day-dot   { display: flex; align-items: center; gap: 3px; overflow: hidden; }
   .dot-mark  { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
@@ -206,14 +171,36 @@
   .task-check.checked { background: var(--accent); border-color: var(--accent); }
   .task-check.checked::after { content: "✓"; font-size: 9px; color: #fff; font-weight: 700; }
 
+  /* ── Priority badge — click to open a picker, same pattern as category ── */
   .pri-badge {
     font-size: 9px; font-weight: 700;
     padding: 1px 4px; border-radius: 3px; flex-shrink: 0;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.04em; cursor: pointer; transition: filter 0.1s;
   }
+  .pri-badge:hover { filter: brightness(1.2); }
   .pri-1 { background: rgba(176,48,48,0.15);  color: var(--high); }
   .pri-2 { background: rgba(154,110,16,0.15); color: var(--med); }
   .pri-3 { background: rgba(58,112,64,0.15);  color: var(--low); }
+
+  /* ── Reordered indicator — lights up when a task's position was manually dragged out of priority order ── */
+  .moved-dot {
+    width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+    background: transparent;
+  }
+  .moved-dot.show { background: #ff3b3b; box-shadow: 0 0 3px #ff3b3b; }
+
+  /* ── Drag handle — press and drag a whole row to persist a custom queue order.
+     Fixed neutral color + a dark+light dual halo (not var(--muted)/var(--accent))
+     so the grip stays visible no matter the theme or what's flowing behind it. ── */
+  .drag-handle {
+    flex-shrink: 0; cursor: grab; color: #9a9aa2;
+    font-size: 11px; line-height: 1; opacity: 0.55; padding: 0 2px;
+    text-shadow: 0 0 2px rgba(0,0,0,0.65), 0 0 3px rgba(255,255,255,0.5);
+    transition: opacity 0.1s, color 0.1s;
+  }
+  .drag-handle:hover  { opacity: 1; color: #eaeaee; }
+  .drag-handle:active { cursor: grabbing; }
+  .task-row.drag-ghost { opacity: 0.35; }
 
   .task-name { flex: 1; font-size: 12.5px; line-height: 1.3; word-break: break-word; }
   .task-row.done-row .task-name { text-decoration: line-through; }
@@ -234,18 +221,18 @@
   .task-btn.delete:hover  { color: var(--warn); }
   .task-btn.cat-change:hover { color: var(--accent); }
 
-  /* Inline category picker — portal at body level to escape overflow-y:auto clipping */
+  /* Inline category/priority pickers — portals at body level to escape overflow-y:auto clipping */
   .task-cat-wrap { flex-shrink: 0; }
-  #task-cat-portal {
+  #task-cat-portal, #task-pri-portal {
     display: none; position: fixed;
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 6px; padding: 5px; min-width: 160px;
     max-height: 200px; overflow-y: auto;
     box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 1000;
   }
-  #task-cat-portal.open { display: block; }
-  #task-cat-portal::-webkit-scrollbar { width: 3px; }
-  #task-cat-portal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  #task-cat-portal.open, #task-pri-portal.open { display: block; }
+  #task-cat-portal::-webkit-scrollbar, #task-pri-portal::-webkit-scrollbar { width: 3px; }
+  #task-cat-portal::-webkit-scrollbar-thumb, #task-pri-portal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   .task-cat-option {
     display: flex; align-items: center; gap: 6px;
     padding: 4px 6px; border-radius: 3px; cursor: pointer; font-size: 11px;
@@ -424,6 +411,22 @@
   .theme-btn:hover   { border-color: var(--accent); color: var(--text); }
   .theme-btn.active  { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
+  /* ── Theme "More" submenu — holds every theme past the 5 most recently used ── */
+  .theme-more-wrap { position: relative; }
+  .theme-more-menu {
+    display: none; position: absolute; bottom: calc(100% + 6px); right: 0;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px; min-width: 120px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25); z-index: 100;
+  }
+  .theme-more-menu.open { display: block; }
+  .theme-more-option {
+    padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;
+    color: var(--muted); transition: background 0.1s, color 0.1s;
+  }
+  .theme-more-option:hover { background: var(--btn-hover); color: var(--text); }
+  .theme-more-option.active { color: var(--accent); font-weight: 600; }
+
   /* ── Settings panel ── */
   .settings-panel {
     display: none; background: var(--surface);
@@ -451,10 +454,12 @@
 
 <!-- Portal for task category picker — lives at body level to escape overflow clipping -->
 <div id="task-cat-portal"></div>
+<!-- Portal for task priority picker — same reason -->
+<div id="task-pri-portal"></div>
 <!-- Portal for "+N more" week-grid hover popover — same reason -->
 <div id="week-more-portal"></div>
 
-<div class="header">
+<div class="header theme-bar">
   <div>
     <div class="header-label">Morning Planner</div>
     <div class="header-date" id="header-date"></div>
@@ -462,7 +467,7 @@
   <div class="clock" id="clock"></div>
 </div>
 
-<div class="week-section">
+<div class="week-section theme-bar">
   <div class="section-label">Week at a Glance</div>
   <div class="week-grid" id="week-grid"></div>
 </div>
@@ -486,7 +491,7 @@
   </div>
 </div>
 
-<div class="input-section">
+<div class="input-section theme-bar">
   <div class="input-row">
     <span class="input-prompt">&gt;</span>
     <input class="task-input" id="task-input" type="text"
@@ -520,7 +525,7 @@
   </div>
 </div>
 
-<div class="settings-panel" id="settings-panel">
+<div class="settings-panel theme-bar" id="settings-panel">
   <span class="settings-label">Morning</span>
   <input class="settings-input" id="morning-time" type="text" placeholder="07:30" maxlength="5">
   <span class="settings-label">Evening</span>
@@ -530,16 +535,12 @@
   <span class="settings-err" id="settings-err"></span>
 </div>
 
-<div class="footer">
+<div class="footer theme-bar">
   <span class="footer-cmd">planner morning</span>
   <button class="footer-btn" id="btn-settings">&#9881; Settings</button>
   <button class="footer-btn" id="btn-pin">&#128204; Pin Task List</button>
   <button class="footer-btn" id="btn-evening">&#127769; Evening Review</button>
-  <div class="theme-group">
-    <button class="theme-btn" data-t="dark">Dark</button>
-    <button class="theme-btn" data-t="warm">Warm</button>
-    <button class="theme-btn" data-t="red">Red</button>
-  </div>
+  <div class="theme-group" id="theme-group"></div>
 </div>
 
 <script>
@@ -566,21 +567,8 @@ function setDate() {
     new Date().toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
 }
 
-// ── Theme ──
-function applyTheme(name) {
-  document.documentElement.setAttribute('data-theme', name);
-  document.querySelectorAll('.theme-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.t === name)
-  );
-}
-
-document.querySelectorAll('.theme-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const t = btn.dataset.t;
-    applyTheme(t);
-    try { await api().save_theme(t); } catch(e) {}
-  });
-});
+// ── Theme picker (applyTheme, renderThemeMenu, selectTheme) — shared, see ui/theme-menu.js ──
+// @@THEME_MENU_JS@@
 
 // ── Helpers ──
 const PRI_LABEL = {1:'H', 2:'M', 3:'L'};
@@ -741,6 +729,16 @@ document.addEventListener('click', (e) => {
     TCP.classList.remove('open');
     _openTcp = null;
   }
+  // Close task priority portal
+  if (_openTpp !== null && !TPP.contains(e.target)) {
+    TPP.classList.remove('open');
+    _openTpp = null;
+  }
+  // Close theme "More" submenu
+  const moreMenu = document.getElementById('theme-more-menu');
+  if (moreMenu && !moreMenu.contains(e.target) && e.target.id !== 'theme-more-btn') {
+    moreMenu.classList.remove('open');
+  }
 });
 document.getElementById('cat-tag-btn').addEventListener('click', (e) => {
   e.stopPropagation();
@@ -818,9 +816,12 @@ async function loadToday() {
     return;
   }
   list.innerHTML = tasks.map(t =>
-    `<div class="task-row ${t.completed ? 'done-row' : ''}">
+    `<div class="task-row ${t.completed ? 'done-row' : ''}" data-id="${t.id}"
+          ondragover="onRowDragOver(event)" ondrop="event.preventDefault()">
+      <span class="drag-handle" draggable="true" ondragstart="onRowDragStart(event)" ondragend="onRowDragEnd(event)" title="Drag to reorder — overrides priority sort">&#8942;&#8942;</span>
+      <div class="moved-dot ${t.reordered ? 'show' : ''}" title="${t.reordered ? 'Manually reordered' : ''}"></div>
       <div class="task-check ${t.completed ? 'checked' : ''}" onclick="toggleDone(${t.id},${t.completed})"></div>
-      <span class="pri-badge ${PRI_CLASS[t.priority]}">${PRI_LABEL[t.priority]}</span>
+      <span class="pri-badge ${PRI_CLASS[t.priority]}" onclick="openTaskPriPicker(event,${t.id})" title="Change priority">${PRI_LABEL[t.priority]}</span>
       <span class="task-name" data-name="${esc(t.name)}" ondblclick="startEditTask(event,${t.id})">${mdFormat(t.name)}</span>
       <div class="task-cat-wrap">
         ${t.cat_name
@@ -847,8 +848,11 @@ async function loadWeekly() {
     return;
   }
   list.innerHTML = tasks.map(t =>
-    `<div class="task-row">
-      <span class="pri-badge ${PRI_CLASS[t.priority]}">${PRI_LABEL[t.priority]}</span>
+    `<div class="task-row" data-id="${t.id}"
+          ondragover="onRowDragOver(event)" ondrop="event.preventDefault()">
+      <span class="drag-handle" draggable="true" ondragstart="onRowDragStart(event)" ondragend="onRowDragEnd(event)" title="Drag to reorder — overrides priority sort">&#8942;&#8942;</span>
+      <div class="moved-dot ${t.reordered ? 'show' : ''}" title="${t.reordered ? 'Manually reordered' : ''}"></div>
+      <span class="pri-badge ${PRI_CLASS[t.priority]}" onclick="openTaskPriPicker(event,${t.id})" title="Change priority">${PRI_LABEL[t.priority]}</span>
       <span class="task-name" data-name="${esc(t.name)}" ondblclick="startEditTask(event,${t.id})">${mdFormat(t.name)}</span>
       <div class="task-cat-wrap">
         ${t.cat_name
@@ -882,6 +886,73 @@ async function promoteTask(id) {
     await loadAll();
     showFeedback('Moved to today');
   } catch(e) { showFeedback('Error', false); }
+}
+
+// ── Priority picker — click the priority badge, pick H/M/L (same pattern as category) ──
+const TPP = document.getElementById('task-pri-portal');
+let _openTpp = null;
+const PRI_OPTS = [[1,'High','high'], [2,'Medium','med'], [3,'Low','low']];
+
+function openTaskPriPicker(e, taskId) {
+  e.stopPropagation();
+  const rect = e.currentTarget.getBoundingClientRect();
+  if (_openTpp === taskId) { TPP.classList.remove('open'); _openTpp = null; return; }
+  _openTpp = taskId;
+
+  TPP.innerHTML = PRI_OPTS.map(([p, label, varName]) =>
+    `<div class="task-cat-option" onclick="changeTaskPriority(${taskId},${p})">
+       <div style="width:10px;height:10px;border-radius:50%;background:var(--${varName});flex-shrink:0"></div>
+       <span>${label}</span>
+     </div>`
+  ).join('');
+
+  TPP.style.left   = Math.max(4, rect.left) + 'px';
+  TPP.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+  TPP.style.top    = 'auto';
+  TPP.classList.add('open');
+}
+
+async function changeTaskPriority(taskId, priority) {
+  try {
+    await api().set_priority(taskId, priority);
+    TPP.classList.remove('open');
+    _openTpp = null;
+    await loadAll();
+  } catch(e) { showFeedback('Error', false); }
+}
+
+// ── Row drag-to-reorder — persists a custom queue order that overrides priority sort ──
+let dragRow = null;
+
+function onRowDragStart(e) {
+  dragRow = e.currentTarget.closest('.task-row');
+  dragRow.classList.add('drag-ghost');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragRow.dataset.id);
+}
+
+function onRowDragOver(e) {
+  e.preventDefault();
+  if (!dragRow || e.currentTarget === dragRow) return;
+  const rect   = e.currentTarget.getBoundingClientRect();
+  const before = (e.clientY - rect.top) < rect.height / 2;
+  const parent = e.currentTarget.parentElement;
+  parent.insertBefore(dragRow, before ? e.currentTarget : e.currentTarget.nextSibling);
+}
+
+async function onRowDragEnd(e) {
+  const row = e.currentTarget.closest('.task-row');
+  row.classList.remove('drag-ghost');
+  const container = row.parentElement;
+  const scope = container.id === 'today-list' ? 'today' : 'weekly';
+  const orderedIds = Array.from(container.children)
+    .filter(el => el.classList.contains('task-row'))
+    .map(el => parseInt(el.dataset.id, 10));
+  dragRow = null;
+  try {
+    await api().reorder_tasks(scope, orderedIds);
+    await loadAll();
+  } catch(err) { showFeedback('Error', false); }
 }
 
 async function demoteTask(id) {
@@ -1077,7 +1148,7 @@ async function init() {
   setDate();
   try {
     const cfg = await api().get_config();
-    applyTheme(cfg.theme || 'dark');
+    renderThemeMenu(cfg);
     document.getElementById('morning-time').value = cfg.morning_time || '';
     document.getElementById('evening-time').value = cfg.evening_time || '';
   } catch(e) {}

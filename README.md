@@ -104,6 +104,14 @@ A silent launchd agent runs at 2:00 AM. Any task still in today's scope and not 
 
 ---
 
+## Known Behavior: Autocomplete on Inline Task Editing
+
+Double-click-to-edit fields (Today panel, Weekly Backlog panel — both morning and evening windows) can show a greyed-out inline suggestion completing what you're typing, accepted with `Tab`. This is WKWebView's native browser form-autocomplete, not a feature built into the planner.
+
+The main "add task" input at the bottom of the morning window explicitly opts out of this (`autocomplete="off"`), but the inline rename field doesn't, so WebKit falls back to its default behavior there. It only ever suggests text previously typed into that field — nothing is sent anywhere, and no task data is involved beyond what you've already typed locally in that same input. Left as-is rather than suppressed.
+
+---
+
 ## Terminal Commands
 
 If launchd has a hiccup or you want to trigger manually:

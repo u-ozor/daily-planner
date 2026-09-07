@@ -25,12 +25,17 @@ PLIST_MORNING = AGENTS_DIR / "com.dailyplanner.morning.plist"
 PLIST_EVENING = AGENTS_DIR / "com.dailyplanner.evening.plist"
 PLIST_CLEANUP = AGENTS_DIR / "com.dailyplanner.cleanup.plist"
 
+# Single source of truth for theme names — CSS definitions live in ui/themes.css,
+# injected into every window's HTML at launch (see run_window).
+VALID_THEMES = ("dark", "warm", "nebula", "silvergold", "starlight", "ember")
+
 DEFAULT_CONFIG = {
     "morning_time":        "07:30",
     "evening_time":        "21:00",
     "last_morning_shown":  "",
     "last_evening_shown":  "",
     "theme":               "dark",
+    "recent_themes":       [],
 }
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -40,12 +45,20 @@ def load_config() -> dict:
     try:
         raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         cfg = DEFAULT_CONFIG.copy()
-        for k in DEFAULT_CONFIG:
-            if k in raw and isinstance(raw[k], str):
+        for k, default in DEFAULT_CONFIG.items():
+            if k not in raw:
+                continue
+            if isinstance(default, str) and isinstance(raw[k], str):
                 cfg[k] = raw[k]
+            elif isinstance(default, list) and isinstance(raw[k], list):
+                cfg[k] = [str(x) for x in raw[k] if isinstance(x, str)]
         for key in ("morning_time", "evening_time"):
             if not re.fullmatch(r"\d{2}:\d{2}", cfg[key]):
                 cfg[key] = DEFAULT_CONFIG[key]
+        # Guard against a theme retired since this config was last written
+        if cfg["theme"] not in VALID_THEMES:
+            cfg["theme"] = DEFAULT_CONFIG["theme"]
+        cfg["recent_themes"] = [t for t in cfg["recent_themes"] if t in VALID_THEMES]
         return cfg
     except (json.JSONDecodeError, OSError):
         return DEFAULT_CONFIG.copy()
@@ -87,13 +100,16 @@ def init_db(conn: sqlite3.Connection):
             created_date TEXT    NOT NULL,
             today_date   TEXT,
             week_start   TEXT    NOT NULL,
-            category_id  INTEGER REFERENCES categories(id)
+            category_id  INTEGER REFERENCES categories(id),
+            sort_order   INTEGER
         );
     """)
-    # Safe migration: add category_id to existing installs that predate this column
+    # Safe migrations: add columns to existing installs that predate them
     existing = {r[1] for r in conn.execute("PRAGMA table_info(tasks)")}
     if "category_id" not in existing:
         conn.execute("ALTER TABLE tasks ADD COLUMN category_id INTEGER REFERENCES categories(id)")
+    if "sort_order" not in existing:
+        conn.execute("ALTER TABLE tasks ADD COLUMN sort_order INTEGER")
     conn.commit()
 
 
@@ -146,25 +162,44 @@ class PlannerAPI:
     def get_today_tasks(self):
         today = str(date.today())
         rows = self._db.execute("""
-            SELECT t.id, t.name, t.priority, t.completed, t.completed_at,
+            SELECT t.id, t.name, t.priority, t.completed, t.completed_at, t.sort_order,
                    c.name AS cat_name, c.color AS cat_color
             FROM tasks t
             LEFT JOIN categories c ON t.category_id = c.id
             WHERE t.scope='today' AND t.today_date=?
-            ORDER BY t.completed, t.priority, t.name COLLATE NOCASE
         """, (today,)).fetchall()
-        return [dict(r) for r in rows]
+        return self._order_tasks([dict(r) for r in rows])
 
     def get_weekly_backlog(self):
         rows = self._db.execute("""
-            SELECT t.id, t.name, t.priority, t.created_date,
+            SELECT t.id, t.name, t.priority, t.created_date, t.sort_order, t.completed,
                    c.name AS cat_name, c.color AS cat_color
             FROM tasks t
             LEFT JOIN categories c ON t.category_id = c.id
             WHERE t.scope='weekly' AND t.completed=0
-            ORDER BY t.priority, t.name COLLATE NOCASE
         """).fetchall()
-        return [dict(r) for r in rows]
+        return self._order_tasks([dict(r) for r in rows])
+
+    @staticmethod
+    def _order_tasks(tasks):
+        # Natural order = what plain priority/name sorting would produce.
+        natural = sorted(tasks, key=lambda t: (t["completed"], t["priority"], t["name"].lower()))
+        natural_rank = {t["id"]: i for i, t in enumerate(natural)}
+        # Effective order = manual sort_order wins when set (persisted drag-reorder),
+        # unordered tasks fall back to natural order and sort after ordered ones.
+        effective = sorted(tasks, key=lambda t: (
+            t["completed"],
+            t["sort_order"] is None,
+            t["sort_order"] if t["sort_order"] is not None else 0,
+            t["priority"], t["name"].lower()
+        ))
+        out = []
+        for i, t in enumerate(effective):
+            d = dict(t)
+            d.pop("sort_order", None)
+            d["reordered"] = natural_rank[t["id"]] != i
+            out.append(d)
+        return out
 
     def get_week_overview(self):
         return self.get_period_overview(1)
@@ -246,6 +281,38 @@ class PlannerAPI:
         if not name:
             return {"ok": False, "error": "empty name"}
         self._db.execute("UPDATE tasks SET name=? WHERE id=?", (name, tid))
+        self._db.commit()
+        return {"ok": True}
+
+    def set_priority(self, task_id, priority):
+        tid = valid_task_id(task_id)
+        if tid is None:
+            return {"ok": False, "error": "invalid task id"}
+        new_priority = valid_priority(priority)
+        row = self._db.execute("SELECT priority FROM tasks WHERE id=?", (tid,)).fetchone()
+        if row is None:
+            return {"ok": False, "error": "not found"}
+        if new_priority != row["priority"]:
+            self._db.execute("UPDATE tasks SET priority=? WHERE id=?", (new_priority, tid))
+            self._db.commit()
+        return {"ok": True, "priority": new_priority}
+
+    def reorder_tasks(self, scope, ordered_ids):
+        scope = valid_scope(scope)
+        ids = [valid_task_id(i) for i in (ordered_ids or [])]
+        ids = [i for i in ids if i is not None]
+        today = str(date.today())
+        for idx, tid in enumerate(ids):
+            if scope == "today":
+                self._db.execute(
+                    "UPDATE tasks SET sort_order=? WHERE id=? AND scope='today' AND today_date=?",
+                    (idx, tid, today)
+                )
+            else:
+                self._db.execute(
+                    "UPDATE tasks SET sort_order=? WHERE id=? AND scope='weekly' AND completed=0",
+                    (idx, tid)
+                )
         self._db.commit()
         return {"ok": True}
 
@@ -356,10 +423,16 @@ class PlannerAPI:
         return {"ok": True}
 
     def save_theme(self, theme):
-        if str(theme) not in ("dark", "warm", "red"):
+        theme = str(theme)
+        if theme not in VALID_THEMES:
             return {"ok": False, "error": "unknown theme"}
         cfg = load_config()
-        cfg["theme"] = str(theme)
+        cfg["theme"] = theme
+        # Move to front of recency list so the theme picker can surface
+        # the 5 most recently used themes and tuck the rest in a submenu.
+        recent = [t for t in cfg["recent_themes"] if t != theme]
+        recent.insert(0, theme)
+        cfg["recent_themes"] = recent[:len(VALID_THEMES)]
         save_config(cfg)
         return {"ok": True}
 
@@ -514,6 +587,15 @@ def run_window(mode: str):
 
     # Read content directly — avoids file:// URL encoding issues with spaces in path
     html_content = html_file.read_text(encoding="utf-8")
+
+    # Theme CSS (and, where used, the theme-picker JS) live in one shared file each
+    # under ui/ and get spliced into the marker comment every window carries —
+    # keeps all theme definitions in a single place instead of copy-pasted per window.
+    themes_css = (UI_DIR / "themes.css").read_text(encoding="utf-8")
+    html_content = html_content.replace("/* @@THEMES_CSS@@ */", themes_css)
+    if mode in ("morning", "evening"):
+        theme_menu_js = (UI_DIR / "theme-menu.js").read_text(encoding="utf-8")
+        html_content = html_content.replace("// @@THEME_MENU_JS@@", theme_menu_js)
 
     import webview
     webview.create_window(
