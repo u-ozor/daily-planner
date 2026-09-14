@@ -168,6 +168,16 @@ The `planner` alias is installed to `~/.zshrc` by `install.sh`.
 
 ---
 
+## Running Tests
+
+```
+python3 -m unittest discover -s tests
+```
+
+Stdlib-only, runs against a throwaway temp SQLite DB — never touches the real install under `~/Library/Application Support/DailyPlanner/`.
+
+---
+
 ## Renaming the Directory
 
 The script finds its own location at runtime via `Path(__file__).resolve()` — renaming the directory won't break any data or configuration. After renaming, run `bash install.sh` from the new location to update the alias in `~/.zshrc` and regenerate the launchd plists with the new path.
