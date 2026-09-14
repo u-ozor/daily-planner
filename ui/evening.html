@@ -90,6 +90,8 @@
   .pri-2 { background: rgba(154,110,16,0.15); color: var(--med); }
   .pri-3 { background: rgba(58,112,64,0.15);  color: var(--low); }
 
+  .repeat-ind { color: var(--accent); font-size: 11px; flex-shrink: 0; opacity: 0.8; }
+
   .task-name { flex: 1; font-size: 12.5px; line-height: 1.3; word-break: break-word; }
   .task-row.done-row .task-name { text-decoration: line-through; }
   .task-edit-input {
@@ -416,6 +418,7 @@ async function loadToday() {
       `<div class="task-row ${t.completed ? 'done-row':''}">
         <div class="task-check ${t.completed ? 'checked':''}" onclick="toggleDone(${t.id},${t.completed})"></div>
         <span class="pri-badge ${PRI_CLASS[t.priority]}">${PRI_LABEL[t.priority]}</span>
+        ${t.repeatable ? '<span class="repeat-ind" title="Repeating task">&#8635;</span>' : ''}
         <span class="task-name" data-name="${esc(t.name)}" ondblclick="startEditTask(event,${t.id})">${mdFormat(t.name)}</span>
         ${t.cat_name ? catPod(t.cat_name, t.cat_color) : ''}
       </div>`
@@ -433,6 +436,7 @@ async function loadWeekly() {
     list.innerHTML = tasks.map(t =>
       `<div class="task-row">
         <span class="pri-badge ${PRI_CLASS[t.priority]}">${PRI_LABEL[t.priority]}</span>
+        ${t.repeatable ? '<span class="repeat-ind" title="Repeating task">&#8635;</span>' : ''}
         <span class="task-name" data-name="${esc(t.name)}" ondblclick="startEditTask(event,${t.id})">${mdFormat(t.name)}</span>
         ${t.cat_name ? catPod(t.cat_name, t.cat_color) : ''}
         <button class="task-btn promote" onclick="promoteTask(${t.id})" title="Move to today">&#8593; today</button>

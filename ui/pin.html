@@ -85,6 +85,10 @@
 
   .task-name { flex: 1; font-size: 11.5px; line-height: 1.3; word-break: break-word; }
   .task-row.done-row .task-name { text-decoration: line-through; }
+  .task-edit-input {
+    width: 100%; background: var(--input-bg); border: 1px solid var(--accent);
+    border-radius: 3px; color: var(--text); font: inherit; padding: 1px 5px; outline: none;
+  }
 
   .cat-pod {
     display: inline-flex; align-items: center;
@@ -92,6 +96,8 @@
     border-radius: 10px; flex-shrink: 0; color: #fff;
     white-space: nowrap; max-width: 60px; overflow: hidden; text-overflow: ellipsis;
   }
+
+  .repeat-ind { color: var(--accent); font-size: 10px; flex-shrink: 0; opacity: 0.8; }
 
   .empty-state { color: var(--muted); font-size: 11px; padding: 20px 8px; text-align: center; }
 </style>
@@ -155,7 +161,8 @@ async function loadTasks() {
       const title     = t.reordered ? 'Manually reordered' : '';
       return `<div class="task-row ${priCls} ${t.completed ? 'done-row':''}${reordered}" title="${title}">
         <div class="task-check ${t.completed ? 'checked':''}" onclick="toggle(${t.id},${t.completed})"></div>
-        <span class="task-name">${mdFormat(t.name)}</span>
+        ${t.repeatable ? '<span class="repeat-ind" title="Repeating task">&#8635;</span>' : ''}
+        <span class="task-name" data-name="${esc(t.name)}" ondblclick="startEditTask(event,${t.id})">${mdFormat(t.name)}</span>
         ${t.cat_name ? catPod(t.cat_name, t.cat_color) : ''}
       </div>`;
     }).join('');
@@ -167,6 +174,39 @@ async function toggle(id, wasDone) {
     if (wasDone) await api().unmark_done(id); else await api().mark_done(id);
     await loadTasks();
   } catch(e) {}
+}
+
+// ── Inline task-name editing (double-click) ──
+function startEditTask(e, id) {
+  const span = e.currentTarget;
+  if (span.querySelector('input')) return;
+  const rawName = span.dataset.name;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'task-edit-input';
+  input.maxLength = 280;
+  input.value = rawName;
+  span.textContent = '';
+  span.appendChild(input);
+  input.focus();
+  input.select();
+
+  let settled = false;
+  async function commit() {
+    if (settled) return;
+    settled = true;
+    const val = input.value.trim();
+    if (val && val !== rawName) {
+      try { await api().update_task_name(id, val); } catch(err) {}
+    }
+    await loadTasks();
+  }
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+    else if (ev.key === 'Escape') { settled = true; loadTasks(); }
+  });
+  input.addEventListener('blur', commit);
+  input.addEventListener('click', (ev) => ev.stopPropagation());
 }
 
 document.getElementById('refresh-btn').addEventListener('click', loadTasks);

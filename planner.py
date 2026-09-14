@@ -101,7 +101,8 @@ def init_db(conn: sqlite3.Connection):
             today_date   TEXT,
             week_start   TEXT    NOT NULL,
             category_id  INTEGER REFERENCES categories(id),
-            sort_order   INTEGER
+            sort_order   INTEGER,
+            repeatable   INTEGER NOT NULL DEFAULT 0
         );
     """)
     # Safe migrations: add columns to existing installs that predate them
@@ -110,6 +111,8 @@ def init_db(conn: sqlite3.Connection):
         conn.execute("ALTER TABLE tasks ADD COLUMN category_id INTEGER REFERENCES categories(id)")
     if "sort_order" not in existing:
         conn.execute("ALTER TABLE tasks ADD COLUMN sort_order INTEGER")
+    if "repeatable" not in existing:
+        conn.execute("ALTER TABLE tasks ADD COLUMN repeatable INTEGER NOT NULL DEFAULT 0")
     conn.commit()
 
 
@@ -162,7 +165,7 @@ class PlannerAPI:
     def get_today_tasks(self):
         today = str(date.today())
         rows = self._db.execute("""
-            SELECT t.id, t.name, t.priority, t.completed, t.completed_at, t.sort_order,
+            SELECT t.id, t.name, t.priority, t.completed, t.completed_at, t.sort_order, t.repeatable,
                    c.name AS cat_name, c.color AS cat_color
             FROM tasks t
             LEFT JOIN categories c ON t.category_id = c.id
@@ -172,7 +175,7 @@ class PlannerAPI:
 
     def get_weekly_backlog(self):
         rows = self._db.execute("""
-            SELECT t.id, t.name, t.priority, t.created_date, t.sort_order, t.completed,
+            SELECT t.id, t.name, t.priority, t.created_date, t.sort_order, t.completed, t.repeatable,
                    c.name AS cat_name, c.color AS cat_color
             FROM tasks t
             LEFT JOIN categories c ON t.category_id = c.id
@@ -233,7 +236,7 @@ class PlannerAPI:
             })
         return result
 
-    def add_task(self, name, priority, scope, category_id=None):
+    def add_task(self, name, priority, scope, category_id=None, repeatable=0):
         name = clean_name(name)
         if not name:
             return {"ok": False, "error": "empty name"}
@@ -243,10 +246,11 @@ class PlannerAPI:
         ws         = str(week_start_of(date.today()))
         today_date = today if scope == "today" else None
         cid        = valid_task_id(category_id)
+        rep        = 1 if repeatable else 0
         self._db.execute("""
-            INSERT INTO tasks (name, priority, scope, created_date, today_date, week_start, category_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (name, priority, scope, today, today_date, ws, cid))
+            INSERT INTO tasks (name, priority, scope, created_date, today_date, week_start, category_id, repeatable)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (name, priority, scope, today, today_date, ws, cid, rep))
         self._db.commit()
         return {"ok": True}
 
@@ -296,6 +300,15 @@ class PlannerAPI:
             self._db.execute("UPDATE tasks SET priority=? WHERE id=?", (new_priority, tid))
             self._db.commit()
         return {"ok": True, "priority": new_priority}
+
+    def set_repeatable(self, task_id, repeatable):
+        tid = valid_task_id(task_id)
+        if tid is None:
+            return {"ok": False, "error": "invalid task id"}
+        rep = 1 if repeatable else 0
+        self._db.execute("UPDATE tasks SET repeatable=? WHERE id=?", (rep, tid))
+        self._db.commit()
+        return {"ok": True, "repeatable": rep}
 
     def reorder_tasks(self, scope, ordered_ids):
         scope = valid_scope(scope)
@@ -500,6 +513,28 @@ def run_cleanup():
     conn = open_db()
     init_db(conn)
     yesterday = str(date.today() - timedelta(days=1))
+    today     = str(date.today())
+    ws        = str(week_start_of(date.today()))
+
+    # Repeatable tasks completed on a past day: spawn a fresh, uncompleted copy
+    # in the weekly backlog so it can be replanned, while leaving the completed
+    # row untouched as history (today_date keeps it visible in the week grid).
+    repeats = conn.execute("""
+        SELECT name, priority, category_id FROM tasks
+        WHERE scope='today' AND completed=1 AND repeatable=1 AND today_date <= ?
+    """, (yesterday,)).fetchall()
+    for r in repeats:
+        conn.execute("""
+            INSERT INTO tasks (name, priority, scope, completed, created_date, today_date, week_start, category_id, repeatable)
+            VALUES (?, ?, 'weekly', 0, ?, NULL, ?, ?, 1)
+        """, (r["name"], r["priority"], today, ws, r["category_id"]))
+    # Flip those completed rows out of scope='today' so a future cleanup run
+    # doesn't match today_date<=yesterday again and respawn duplicates forever.
+    conn.execute("""
+        UPDATE tasks SET scope='weekly'
+        WHERE scope='today' AND completed=1 AND repeatable=1 AND today_date <= ?
+    """, (yesterday,))
+
     # Keep today_date so the week grid shows the task was planned that day
     # (planned-and-failed history). Only the scope flips to weekly.
     conn.execute("""

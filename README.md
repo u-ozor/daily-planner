@@ -6,6 +6,25 @@ No cloud, no subscriptions, no telemetry. Everything runs locally.
 
 ---
 
+## Features
+
+- **Two-bucket planning** — every task is either "today" or "weekly backlog"; nothing spans days
+- **Week at a Glance grid** — 7-day view of what was planned/completed each day, with a hover popover for overflow days
+- **Priorities** — High / Medium / Low, set on add or changed later via a click-to-pick badge
+- **Categories** — named, colored tags shared across all tasks; recolor updates every task using that category at once
+- **Repeating tasks** — mark a task repeatable; completing it doesn't end it — the 2 AM agent re-adds it to the weekly backlog automatically
+- **Manual drag-reorder** — drag the `⋮⋮` handle to override priority sort order; a marker flags tasks moved out of natural order
+- **Inline editing** — double-click any task name to rename it in place
+- **Markdown-style formatting** — `**bold**`, `*italic*`, `~~strikethrough~~` in task names
+- **Pinned always-on-top tracker** — a small floating window with live checkboxes for today's tasks, independently zoomable
+- **Evening review** — completion stats, a "dopamine" summary message, and a Week/2 Weeks/Month completion chart with click-through day detail
+- **6 animated themes** — Dark, Warm, Nebula, Silver & Gold, Starlight, Ember — shared across all three windows, with a recently-used quick-picker
+- **2 AM auto-move** — unfinished today-tasks silently roll into the weekly backlog overnight, no popup
+- **launchd-scheduled windows** — morning and evening popups fire at times you set, catching up on wake if your Mac was asleep
+- **Local-only SQLite storage** — no network calls, no accounts, inspectable with any SQLite tool
+
+---
+
 ## How It Works
 
 Two `launchd` agents fire at times you set. Each launches a native-looking window via `pywebview`, which embeds macOS's WKWebView (the same rendering engine as Safari, without any browser chrome). If your Mac was asleep at the scheduled time, the window appears when it wakes up. A third silent agent runs at 2:00 AM to move uncompleted today-tasks into the weekly backlog.
@@ -33,13 +52,16 @@ Tasks moved to weekly by the 2AM agent (planned but not done) stay visible as un
 
 **Today panel** — left side. Each task has:
 - A checkbox to mark done/undone
-- Priority badge (H / M / L)
+- `⋮⋮` drag handle — drag the row to reorder; overrides the default priority sort. A red dot marks tasks moved out of natural order
+- Priority badge (H / M / L) — click to open a picker and change it
 - Double-click the task name to edit it in place — Enter or clicking away saves, Esc cancels
+- `↻` button — toggles the task **repeatable** (see [Repeating Tasks](#repeating-tasks) below); highlighted when active
 - `→w` button — moves the task back to weekly and removes it from the week grid (treats it as a planning mistake, not a failure)
 - `✕` button — deletes the task entirely
 
 **Weekly Backlog panel** — right side. Tasks accumulate here. Each has:
-- Double-click the task name to edit it in place, same as the Today panel
+- `⋮⋮` drag handle, priority badge, and inline rename, same as the Today panel
+- `↻` button — toggle repeatable, same as the Today panel
 - `↑ today` button — promotes to today's list
 - `✕` button — deletes
 
@@ -60,6 +82,8 @@ Optionally assign a **category** before adding: click the `🏷 Category` button
 
 Categories are shared across all tasks and persist in the database. Two tasks can share the same category; category names are unique — creating one with the same name updates its color. To recolor an existing category, click its color dot inside the category picker — this opens the native color picker and applies the new color to every task using that category, immediately.
 
+Optionally mark the task **repeatable** before adding: click the `↻ Repeat` button next to the input (it highlights when active). See [Repeating Tasks](#repeating-tasks).
+
 **Text formatting** — task names support a small set of Obsidian-style inline markers, rendered wherever a task name is displayed (Today, Weekly Backlog, Week at a Glance, Evening Review, and the pinned task tracker):
 
 | Syntax | Result |
@@ -69,7 +93,7 @@ Categories are shared across all tasks and persist in the database. Two tasks ca
 | `~~strikethrough~~` | ~~strikethrough~~ |
 
 **Footer**
-- Theme switcher: Dark / Warm / Red
+- Theme switcher: 6 themes (Dark, Warm, Nebula, Silver & Gold, Starlight, Ember) — shows your 5 most recently used as direct buttons plus a "More" submenu for the rest
 - Settings: adjust morning/evening popup times (rewrites and reloads launchd plists — only this app's agents are affected)
 - Pin button: opens the pinned task tracker
 - Evening Review button: opens the evening window
@@ -98,9 +122,24 @@ Zoom the text/layout with `Cmd +` / `Cmd -` (`Cmd 0` resets to 100%). The window
 
 ---
 
+## Repeating Tasks
+
+Any task — today or weekly — can be marked **repeatable** via the `↻` button on the task row, or the `↻ Repeat` toggle in the morning window's input bar before adding a new one.
+
+A repeatable task behaves normally while it's active: check it off like any other task. The difference is what happens overnight — see [2 AM Auto-Move](#2-am-auto-move) below. Non-repeatable tasks that get completed are simply done; repeatable ones come back.
+
+The repeat state is visible everywhere a task appears (Today, Weekly Backlog, Pinned Tracker, Evening Review) as a small `↻` marker, and is toggleable from the Today/Weekly panels in the morning window.
+
+---
+
 ## 2 AM Auto-Move
 
-A silent launchd agent runs at 2:00 AM. Any task still in today's scope and not marked complete moves to the weekly backlog. Its `today_date` is preserved — it stays visible as an uncompleted dot in the week grid, showing you it was planned that day. No window, no interruption.
+A silent launchd agent runs at 2:00 AM and does two things:
+
+1. **Unfinished today-tasks** (not marked complete) move to the weekly backlog. `today_date` is preserved, so the task still shows as an uncompleted dot in the week grid — a record that it was planned, not that it vanished.
+2. **Completed repeatable tasks** get a fresh, unchecked copy added to the weekly backlog, ready to be replanned. The original completed task is left alone as history — it keeps showing as a completed dot on the day you finished it.
+
+No window, no interruption either way.
 
 ---
 

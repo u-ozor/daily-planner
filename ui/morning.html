@@ -220,6 +220,8 @@
   .task-btn.demote:hover  { color: var(--med); }
   .task-btn.delete:hover  { color: var(--warn); }
   .task-btn.cat-change:hover { color: var(--accent); }
+  .task-btn.repeat:hover  { color: var(--accent); }
+  .task-btn.repeat.active { color: var(--accent); opacity: 1; }
 
   /* Inline category/priority pickers — portals at body level to escape overflow-y:auto clipping */
   .task-cat-wrap { flex-shrink: 0; }
@@ -274,6 +276,15 @@
   }
   .cat-tag-btn:hover { border-color: var(--accent); color: var(--text); }
   .cat-tag-btn.has-cat { color: #fff; border-color: transparent; }
+
+  .repeat-tag-btn {
+    background: none; border: 1px solid var(--border);
+    border-radius: 10px; color: var(--muted); font-size: 10px;
+    padding: 2px 8px; cursor: pointer; transition: all 0.1s;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .repeat-tag-btn:hover  { border-color: var(--accent); color: var(--text); }
+  .repeat-tag-btn.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
   .cat-picker {
     display: none; position: absolute; bottom: calc(100% + 6px); left: 0;
@@ -515,6 +526,7 @@
         </div>
       </div>
     </div>
+    <button class="repeat-tag-btn" id="repeat-tag-btn" type="button" title="Repeat: when completed, re-added to weekly at 2am">&#8635; Repeat</button>
     <button class="send-btn" id="send-btn">Add</button>
     <span class="feedback" id="feedback"></span>
   </div>
@@ -830,6 +842,7 @@ async function loadToday() {
           : `<button class="task-btn cat-change" onclick="openTaskCatPicker(event,${t.id})" title="Set category">&#127991;</button>`
         }
       </div>
+      <button class="task-btn repeat ${t.repeatable ? 'active' : ''}" onclick="toggleRepeatable(${t.id},${t.repeatable})" title="${t.repeatable ? 'Repeating — re-added to weekly at 2am when completed' : 'Make repeating'}">&#8635;</button>
       <button class="task-btn demote" onclick="demoteTask(${t.id})" title="Move back to weekly (removes from grid)">&#8594;w</button>
       <button class="task-btn delete" onclick="deleteTask(${t.id})" title="Remove">&#10005;</button>
     </div>`
@@ -861,6 +874,7 @@ async function loadWeekly() {
           : `<button class="task-btn cat-change" onclick="openTaskCatPicker(event,${t.id})" title="Set category">&#127991;</button>`
         }
       </div>
+      <button class="task-btn repeat ${t.repeatable ? 'active' : ''}" onclick="toggleRepeatable(${t.id},${t.repeatable})" title="${t.repeatable ? 'Repeating — re-added to weekly at 2am when completed' : 'Make repeating'}">&#8635;</button>
       <button class="task-btn promote" onclick="promoteTask(${t.id})" title="Move to today">&#8593; today</button>
       <button class="task-btn delete"  onclick="deleteTask(${t.id})"  title="Remove">&#10005;</button>
     </div>`
@@ -885,6 +899,13 @@ async function promoteTask(id) {
     await api().promote_task(id);
     await loadAll();
     showFeedback('Moved to today');
+  } catch(e) { showFeedback('Error', false); }
+}
+
+async function toggleRepeatable(id, wasRepeatable) {
+  try {
+    await api().set_repeatable(id, wasRepeatable ? 0 : 1);
+    await loadAll();
   } catch(e) { showFeedback('Error', false); }
 }
 
@@ -1085,6 +1106,15 @@ document.getElementById('task-input').addEventListener('input', (e) => {
   }
 });
 
+let repeatFlag = false;
+
+function setRepeatFlag(on) {
+  repeatFlag = on;
+  document.getElementById('repeat-tag-btn').classList.toggle('active', repeatFlag);
+}
+
+document.getElementById('repeat-tag-btn').addEventListener('click', () => setRepeatFlag(!repeatFlag));
+
 async function submitInput() {
   const input  = document.getElementById('task-input');
   const parsed = parseInput(input.value);
@@ -1093,11 +1123,12 @@ async function submitInput() {
     return;
   }
   try {
-    const res = await api().add_task(parsed.name, parsed.priority, parsed.scope, selectedCatId);
+    const res = await api().add_task(parsed.name, parsed.priority, parsed.scope, selectedCatId, repeatFlag ? 1 : 0);
     if (res.ok) {
       document.getElementById('task-input').value = '';
       document.getElementById('scope-badge').textContent = 'TODAY';
       document.getElementById('scope-badge').className = 'scope-badge today-mode';
+      setRepeatFlag(false);
       showFeedback(`Added to ${parsed.scope === 'today' ? 'today' : 'weekly'}`);
       await loadAll();
     } else {
