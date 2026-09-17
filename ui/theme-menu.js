@@ -9,12 +9,22 @@
 // how many themes exist. Names/labels here must stay in sync with
 // planner.py's VALID_THEMES.
 const ALL_THEMES = [
-  ['dark',       'Dark'],
-  ['warm',       'Warm'],
-  ['nebula',     'Nebula'],
-  ['silvergold', 'Silver/Gold'],
-  ['starlight',  'Starlight'],
-  ['ember',      'Ember'],
+  ['dark',         'Dark'],
+  ['warm',         'Warm'],
+  ['nebula',       'Nebula'],
+  ['silvergold',   'Silver/Gold'],
+  ['starlight',    'Starlight'],
+  ['ember',        'Ember'],
+  ['moss',         'Moss'],
+  ['slate',        'Slate'],
+  ['sandstone',    'Sandstone'],
+  ['blush',        'Blush'],
+  ['deepsea',      'Deep Sea'],
+  ['lavendermist', 'Lavender Mist'],
+  ['pinegrove',    'Pine Grove'],
+  ['copper',       'Copper'],
+  ['aurora',       'Aurora'],
+  ['sunsetcanyon', 'Sunset Canyon'],
 ];
 
 function applyTheme(name) {

@@ -127,6 +127,196 @@ html[data-theme="ember"] {
   --btn-hover: #402420;
 }
 
+/* ── Moss — light, stagnant. Sage/forest-floor green, no motion. ── */
+html[data-theme="moss"] {
+  --bg:        #eef2e6;
+  --surface:   #e0e8d4;
+  --border:    #c8d4b8;
+  --accent:    #4a7a4a;
+  --text:      #232b1e;
+  --muted:     #8a9a78;
+  --high:      #b5443a;
+  --med:       #b8862a;
+  --low:       #3f7a44;
+  --done-text: #a8b098;
+  --warn:      #b5443a;
+  --today-col: #dbe8c8;
+  --today-bdr: #4a7a4a;
+  --input-bg:  #f5f8ef;
+  --btn-hover: #d2ddc0;
+}
+
+/* ── Slate — dark, stagnant. Cool neutral blue-grey, quiet and minimal. ── */
+html[data-theme="slate"] {
+  --bg:        #23262b;
+  --surface:   #2c3038;
+  --border:    #3d434d;
+  --accent:    #7fa8c9;
+  --text:      #dfe3e8;
+  --muted:     #7b828c;
+  --high:      #e07a7a;
+  --med:       #d9b563;
+  --low:       #7ec98f;
+  --done-text: #565d66;
+  --warn:      #e07a7a;
+  --today-col: #2a3542;
+  --today-bdr: #7fa8c9;
+  --input-bg:  #1a1c20;
+  --btn-hover: #383c44;
+}
+
+/* ── Sandstone — light, stagnant. Warm neutral beige/tan desert tones. ── */
+html[data-theme="sandstone"] {
+  --bg:        #f2e9d8;
+  --surface:   #e8dcc4;
+  --border:    #d3c2a0;
+  --accent:    #a3703f;
+  --text:      #33281a;
+  --muted:     #9c8a6c;
+  --high:      #b8483a;
+  --med:       #a97c28;
+  --low:       #4f7a4a;
+  --done-text: #b0a284;
+  --warn:      #b8483a;
+  --today-col: #f5e0b8;
+  --today-bdr: #a3703f;
+  --input-bg:  #faf3e6;
+  --btn-hover: #e0d0ae;
+}
+
+/* ── Blush — light, stagnant. Soft dusty pink/rose. ── */
+html[data-theme="blush"] {
+  --bg:        #fbeef0;
+  --surface:   #f5dde1;
+  --border:    #e6c0c6;
+  --accent:    #c05c72;
+  --text:      #3a1f24;
+  --muted:     #ad8288;
+  --high:      #c0403f;
+  --med:       #b8823a;
+  --low:       #4a7a5c;
+  --done-text: #ceaab0;
+  --warn:      #c0403f;
+  --today-col: #f7d8de;
+  --today-bdr: #c05c72;
+  --input-bg:  #fff5f6;
+  --btn-hover: #eecdd2;
+}
+
+/* ── Deep Sea — dark, slow flow (chrome bars only — see note below). Teal/navy/indigo current. ── */
+html[data-theme="deepsea"] {
+  --bg:        #0c1b22;
+  --surface:   #12262f;
+  --border:    #1f3d49;
+  --accent:    #4fb8c4;
+  --text:      #dff2f4;
+  --muted:     #5f8993;
+  --high:      #ff7a6b;
+  --med:       #e8b95c;
+  --low:       #62c98f;
+  --done-text: #3a5a63;
+  --warn:      #ff7a6b;
+  --today-col: #163544;
+  --today-bdr: #4fb8c4;
+  --input-bg:  #08141a;
+  --btn-hover: #1b3540;
+}
+
+/* ── Lavender Mist — light, slow flow (chrome bars only). Soft grey-lavender fog. ── */
+html[data-theme="lavendermist"] {
+  --bg:        #f1eef7;
+  --surface:   #e6e0f0;
+  --border:    #d0c5e0;
+  --accent:    #8a72b8;
+  --text:      #2c2438;
+  --muted:     #9c8fb0;
+  --high:      #c05a5a;
+  --med:       #b8862a;
+  --low:       #4f7a68;
+  --done-text: #c4b8d6;
+  --warn:      #c05a5a;
+  --today-col: #e8dff5;
+  --today-bdr: #8a72b8;
+  --input-bg:  #f9f7fc;
+  --btn-hover: #dcd2ea;
+}
+
+/* ── Pine Grove — dark, slow flow (chrome bars only). Deep forest at dusk. ── */
+html[data-theme="pinegrove"] {
+  --bg:        #10160f;
+  --surface:   #182018;
+  --border:    #283428;
+  --accent:    #6fae6f;
+  --text:      #dce8dc;
+  --muted:     #6e8070;
+  --high:      #e8746a;
+  --med:       #d9ae5c;
+  --low:       #7fc98a;
+  --done-text: #3c4a3c;
+  --warn:      #e8746a;
+  --today-col: #1c2c1c;
+  --today-bdr: #6fae6f;
+  --input-bg:  #0a0e09;
+  --btn-hover: #223022;
+}
+
+/* ── Copper — dark, slow flow (chrome bars only). Warm bronze/copper metallic sheen. ── */
+html[data-theme="copper"] {
+  --bg:        #1c140f;
+  --surface:   #291d15;
+  --border:    #3d2c1e;
+  --accent:    #c97b3d;
+  --text:      #f0e0cc;
+  --muted:     #a67f5c;
+  --high:      #e8645a;
+  --med:       #e0a04a;
+  --low:       #7fc98a;
+  --done-text: #5c4632;
+  --warn:      #e8645a;
+  --today-col: #3a2416;
+  --today-bdr: #c97b3d;
+  --input-bg:  #120d09;
+  --btn-hover: #34241a;
+}
+
+/* ── Aurora — dark, spectacular flow (chrome bars + body). Northern-lights green/teal/violet. ── */
+html[data-theme="aurora"] {
+  --bg:        #0a1418;
+  --surface:   #122024;
+  --border:    #1e3238;
+  --accent:    #5ee8b0;
+  --text:      #e4f5ef;
+  --muted:     #5c7a78;
+  --high:      #ff7a7a;
+  --med:       #ffcf6b;
+  --low:       #6fd88a;
+  --done-text: #2e4a48;
+  --warn:      #ff7a7a;
+  --today-col: #163030;
+  --today-bdr: #5ee8b0;
+  --input-bg:  #060e10;
+  --btn-hover: #1a2c30;
+}
+
+/* ── Sunset Canyon — dark-warm, spectacular flow (chrome bars + body). Orange/rust/rose dusk. ── */
+html[data-theme="sunsetcanyon"] {
+  --bg:        #2c1710;
+  --surface:   #3a2015;
+  --border:    #4f2f1e;
+  --accent:    #e8703c;
+  --text:      #fbe8d8;
+  --muted:     #b08060;
+  --high:      #ff5a5a;
+  --med:       #ffb347;
+  --low:       #7fc98a;
+  --done-text: #6b4a38;
+  --warn:      #ff5a5a;
+  --today-col: #4a2b18;
+  --today-bdr: #e8703c;
+  --input-bg:  #1c0f0a;
+  --btn-hover: #452a1c;
+}
+
 /* Shared flow keyframe reused by every animated-gradient theme below */
 @keyframes theme-flow {
   0%   { background-position: 0% 50%; }
@@ -238,4 +428,84 @@ html[data-theme="starlight"] .theme-bar { background-color: #171a2b; }
 html[data-theme="starlight"] .theme-bar,
 html[data-theme="starlight"] .theme-bar * {
   text-shadow: 0 1px 2px rgba(0,0,0,0.5), 0 0 4px rgba(0,0,0,0.25);
+}
+
+/* ── Slow themes: flow confined to chrome bars only (same approach as Ember)
+   — the body/task-list area stays a plain, static --bg color so the actual
+   reading surface never moves. Gentle 20-28s cycles, capped-brightness scrim
+   under each gradient just like the original three animated themes. ── */
+html[data-theme="deepsea"] .theme-bar {
+  background:
+    linear-gradient(rgba(0,0,0,0.30), rgba(0,0,0,0.30)),
+    linear-gradient(120deg, #0c1b22 0%, #123a52 25%, #0c1b22 50%, #241b52 75%, #0c1b22 100%);
+  background-size: auto, 300% 300%;
+  animation: theme-flow 26s ease-in-out infinite;
+}
+html[data-theme="pinegrove"] .theme-bar {
+  background:
+    linear-gradient(rgba(0,0,0,0.30), rgba(0,0,0,0.30)),
+    linear-gradient(120deg, #10160f 0%, #223c22 25%, #10160f 50%, #2c4a28 75%, #10160f 100%);
+  background-size: auto, 300% 300%;
+  animation: theme-flow 28s ease-in-out infinite;
+}
+html[data-theme="copper"] .theme-bar {
+  background:
+    linear-gradient(rgba(0,0,0,0.30), rgba(0,0,0,0.30)),
+    linear-gradient(120deg, #291d15 0%, #c97b3d 25%, #8a5a30 50%, #e0a04a 75%, #291d15 100%);
+  background-size: auto, 300% 300%;
+  animation: theme-flow 20s ease-in-out infinite;
+}
+/* Lavender Mist is light-on-light (pastel to pastel) — no brightness spike to
+   cap, so no dark scrim; a plain slow-drifting gradient is enough. */
+html[data-theme="lavendermist"] .theme-bar {
+  background: linear-gradient(120deg, #e6e0f0 0%, #d8ccec 30%, #ece6f5 60%, #cfc2e6 100%);
+  background-size: 300% 300%;
+  animation: theme-flow 24s ease-in-out infinite;
+}
+html[data-theme="deepsea"] .theme-bar,
+html[data-theme="deepsea"] .theme-bar *,
+html[data-theme="pinegrove"] .theme-bar,
+html[data-theme="pinegrove"] .theme-bar *,
+html[data-theme="copper"] .theme-bar,
+html[data-theme="copper"] .theme-bar * {
+  text-shadow: 0 1px 2px rgba(0,0,0,0.55), 0 0 5px rgba(0,0,0,0.3);
+}
+
+/* ── Spectacular themes: flow across chrome bars AND body, same treatment as
+   Nebula/Starlight — brighter, faster cycles, dark stops interleaved so no
+   passage of the loop reads as blown-out, and a dual dark+light halo on body
+   text so it stays legible whether the instant behind it is the dark or
+   bright half of the cycle. ── */
+html[data-theme="aurora"] .theme-bar {
+  background:
+    linear-gradient(rgba(0,0,0,0.30), rgba(0,0,0,0.30)),
+    linear-gradient(120deg, #0a1418 0%, #1c6b5a 20%, #0a1418 45%, #123a52 65%, #4a2f6e 85%, #0a1418 100%);
+  background-size: auto, 300% 300%;
+  animation: theme-flow 14s ease-in-out infinite;
+}
+html[data-theme="sunsetcanyon"] .theme-bar {
+  background:
+    linear-gradient(rgba(0,0,0,0.30), rgba(0,0,0,0.30)),
+    linear-gradient(120deg, #2c1710 0%, #e8703c 20%, #c94f6a 45%, #3a1830 65%, #a8456a 85%, #2c1710 100%);
+  background-size: auto, 300% 300%;
+  animation: theme-flow 16s ease-in-out infinite;
+}
+html[data-theme="aurora"] .theme-bar,
+html[data-theme="aurora"] .theme-bar *,
+html[data-theme="sunsetcanyon"] .theme-bar,
+html[data-theme="sunsetcanyon"] .theme-bar * {
+  text-shadow: 0 1px 2px rgba(0,0,0,0.55), 0 0 5px rgba(0,0,0,0.3);
+}
+
+html[data-theme="aurora"] body {
+  background: linear-gradient(135deg, #0a1418 0%, #1c6b5a 20%, #0a1418 45%, #123a52 65%, #4a2f6e 85%, #0a1418 100%);
+  background-size: 300% 300%;
+  animation: theme-flow 18s ease-in-out infinite;
+  text-shadow: 0 0 3px rgba(0,0,0,0.5), 0 0 4px rgba(255,255,255,0.3);
+}
+html[data-theme="sunsetcanyon"] body {
+  background: linear-gradient(135deg, #2c1710 0%, #e8703c 20%, #c94f6a 45%, #3a1830 65%, #a8456a 85%, #2c1710 100%);
+  background-size: 300% 300%;
+  animation: theme-flow 20s ease-in-out infinite;
+  text-shadow: 0 0 3px rgba(0,0,0,0.5), 0 0 4px rgba(255,255,255,0.3);
 }

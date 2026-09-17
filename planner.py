@@ -27,7 +27,12 @@ PLIST_CLEANUP = AGENTS_DIR / "com.dailyplanner.cleanup.plist"
 
 # Single source of truth for theme names — CSS definitions live in ui/themes.css,
 # injected into every window's HTML at launch (see run_window).
-VALID_THEMES = ("dark", "warm", "nebula", "silvergold", "starlight", "ember")
+VALID_THEMES = (
+    "dark", "warm", "nebula", "silvergold", "starlight", "ember",
+    "moss", "slate", "sandstone", "blush",
+    "deepsea", "lavendermist", "pinegrove", "copper",
+    "aurora", "sunsetcanyon",
+)
 
 DEFAULT_CONFIG = {
     "morning_time":        "07:30",
