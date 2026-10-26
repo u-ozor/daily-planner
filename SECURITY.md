@@ -41,7 +41,7 @@ Rendering order is fixed and matters for safety: the raw task name is passed thr
 
 - All queries use parameterized statements (SQLite `?` placeholders). No string-formatted SQL anywhere.
 - `sqlite3.connect()` receives a path derived from `pathlib.Path` — never a user-supplied string.
-- `check_same_thread=False` is set on the connection. pywebview 6 calls JS API methods from a GUI thread separate from the main thread; this setting allows that safely. WAL journal mode (`PRAGMA journal_mode = WAL`) handles concurrent read/write access correctly.
+- `check_same_thread=False` is set on the connection. This only disables Python's same-thread guard — it does **not** by itself make concurrent use of one `sqlite3.Connection` from multiple threads safe. That matters here because pywebview spawns a brand-new thread for every single JS→Python call with no serialization of its own, and the UI fires several calls at once (`Promise.all`, every 60s). Without further locking, two of those calls landing at the same instant could corrupt a fetch mid-flight — observed in practice as a stray `IndexError` or `sqlite3.InterfaceError` with no apparent cause. `PlannerAPI` now serializes every DB-touching method behind one process-wide `threading.RLock` (the `@_locked` decorator) so only one call executes against `self._db` at a time; WAL journal mode (`PRAGMA journal_mode = WAL`) separately handles concurrent access *across processes* (e.g. the window and a `cleanup`/`status` invocation each with their own connection), which is a different concern from same-process multi-threading.
 - The DB file lives in `~/Library/Application Support/DailyPlanner/tasks.db`. No network socket, no remote connection.
 
 ---
@@ -112,6 +112,17 @@ Plist files are written with `ProgramArguments` containing the Python path and s
 ## Window-Opening Subprocess
 
 `open_window(mode)` spawns `planner <mode>` as a detached subprocess using `subprocess.Popen`. `mode` is checked against the literal allowlist `("morning", "evening", "pin")` before use — no value the JS side sends can reach the argument list except one of those three literals. The resulting arguments are always `[PYTHON_PATH, SCRIPT_PATH, mode]`. Stderr is captured to `~/Library/Application Support/DailyPlanner/<mode>.err` for diagnostics. Used by the Pin buttons (morning, evening) and the cross-navigation buttons (Evening Review from morning, Morning Planner from evening).
+
+---
+
+## Single-Instance IPC Socket
+
+A Unix domain socket at `~/Library/Application Support/DailyPlanner/planner.sock` lets a new `planner morning`/`planner evening` invocation hand off to the already-open window instead of opening a second one (see [Future Features](README.md#always-on-background-app-partially-built--focusswitch-works-true-residency-doesnt) in the README).
+
+- Local only: a Unix domain socket under a path only readable/writable per normal `~/Library` filesystem permissions for the current user — not a network socket, no remote connection, same locality guarantee as the rest of the app.
+- Minimal message surface: the only bytes ever sent over it are the literal strings `"morning"` or `"evening"`; anything else received is silently ignored (`data in ("morning", "evening")` check before any action is taken) — the receiving process cannot be made to run arbitrary code or touch the DB through this channel.
+- Worst case if another local process (running as the same user) connects and sends garbage or one of those two literals: the window switches tab and comes to front. No data is read from or written to the socket connection beyond that one short message, and no other app state is reachable through it.
+- Stale sockets self-heal: if a prior process crashed without cleaning up, the next invocation's connect attempt fails, the stale file is unlinked, and that invocation becomes the new listener.
 
 ---
 
