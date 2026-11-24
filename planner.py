@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Daily Planner — windowed task planner for macOS.
-Usage: planner [morning|evening|pin|cleanup|status|install]
+Usage: planner [morning|evening|pin|cleanup|status|install|schedule]
 """
 import sys
 import json
@@ -12,6 +12,8 @@ import plistlib
 import re
 import threading
 import functools
+import argparse
+import calendar
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -100,9 +102,10 @@ def open_db() -> sqlite3.Connection:
 def init_db(conn: sqlite3.Connection):
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS categories (
-            id    INTEGER PRIMARY KEY AUTOINCREMENT,
-            name  TEXT    NOT NULL UNIQUE COLLATE NOCASE,
-            color TEXT    NOT NULL DEFAULT '#6aaef0'
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            name           TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+            color          TEXT    NOT NULL DEFAULT '#6aaef0',
+            counts_as_rest INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS tasks (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -142,6 +145,7 @@ def init_db(conn: sqlite3.Connection):
             count          INTEGER NOT NULL,
             hit            INTEGER NOT NULL,
             used_allowance INTEGER NOT NULL DEFAULT 0,
+            is_rest        INTEGER NOT NULL DEFAULT 0,
             UNIQUE(run_id, date)
         );
     """)
@@ -159,6 +163,12 @@ def init_db(conn: sqlite3.Connection):
         conn.execute("ALTER TABLE tasks ADD COLUMN hopscotch INTEGER NOT NULL DEFAULT 0")
     if "recur_group" not in existing:
         conn.execute("ALTER TABLE tasks ADD COLUMN recur_group TEXT")
+    existing_cat = {r[1] for r in conn.execute("PRAGMA table_info(categories)")}
+    if "counts_as_rest" not in existing_cat:
+        conn.execute("ALTER TABLE categories ADD COLUMN counts_as_rest INTEGER NOT NULL DEFAULT 0")
+    existing_run_days = {r[1] for r in conn.execute("PRAGMA table_info(run_days)")}
+    if "is_rest" not in existing_run_days:
+        conn.execute("ALTER TABLE run_days ADD COLUMN is_rest INTEGER NOT NULL DEFAULT 0")
     conn.commit()
 
 
@@ -203,7 +213,14 @@ def evaluate_runs(conn: sqlite3.Connection):
                 count = conn.execute(
                     "SELECT COUNT(*) FROM tasks WHERE completed=1 AND completed_at=?", (ds,)
                 ).fetchone()[0]
-            hit = count >= r["target_per_day"]
+            # A completed task in a rest-flagged category satisfies the day outright,
+            # regardless of target_per_day — this is a day-level qualifying condition,
+            # not a consumed allowance, so it never touches allowances_used.
+            rest_day = conn.execute("""
+                SELECT COUNT(*) FROM tasks t JOIN categories c ON t.category_id = c.id
+                WHERE t.completed=1 AND t.completed_at=? AND c.counts_as_rest=1
+            """, (ds,)).fetchone()[0] > 0
+            hit = rest_day or count >= r["target_per_day"]
             used_allowance = 0
             if not hit:
                 if allowances_used < r["allowances_total"]:
@@ -212,9 +229,9 @@ def evaluate_runs(conn: sqlite3.Connection):
                 else:
                     status, ended = "broken", ds
             conn.execute("""
-                INSERT OR REPLACE INTO run_days (run_id, date, count, hit, used_allowance)
-                VALUES (?, ?, ?, ?, ?)
-            """, (r["id"], ds, count, 1 if hit else 0, used_allowance))
+                INSERT OR REPLACE INTO run_days (run_id, date, count, hit, used_allowance, is_rest)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (r["id"], ds, count, 1 if hit else 0, used_allowance, 1 if rest_day else 0))
             last_eval = day_cursor
             days_elapsed = (day_cursor - start).days + 1
             if status == "active" and days_elapsed >= r["total_days"]:
@@ -261,6 +278,12 @@ def valid_time(t: str) -> bool:
         return False
     h, m = int(t[:2]), int(t[3:])
     return 0 <= h <= 23 and 0 <= m <= 59
+
+def valid_date_str(s):
+    try:
+        return str(date.fromisoformat(str(s)))
+    except (TypeError, ValueError):
+        return None
 
 def positive_int(v, default, lo, hi) -> int:
     try:
@@ -320,6 +343,27 @@ class PlannerAPI:
             WHERE t.scope='weekly' AND t.completed=0
         """).fetchall()
         return self._order_tasks(self._with_hopscotch_status([dict(r) for r in rows]))
+
+    @_locked
+    def search_tasks(self, query):
+        """Finder: matches a keyword against task name OR its category's name,
+        across every scope and both completed/open tasks, independent of which
+        tab or wording the task was originally entered under.
+        """
+        q = clean_name(query)
+        if not q:
+            return []
+        like = f"%{q}%"
+        rows = self._db.execute("""
+            SELECT t.id, t.name, t.priority, t.completed, t.scope, t.today_date,
+                   c.name AS cat_name, c.color AS cat_color
+            FROM tasks t
+            LEFT JOIN categories c ON t.category_id = c.id
+            WHERE t.name LIKE ? COLLATE NOCASE OR c.name LIKE ? COLLATE NOCASE
+            ORDER BY t.completed, t.today_date IS NULL, t.today_date DESC, t.priority, t.name COLLATE NOCASE
+            LIMIT 200
+        """, (like, like)).fetchall()
+        return [dict(r) for r in rows]
 
     def _hopscotch_last_done(self, group: str):
         row = self._db.execute(
@@ -433,7 +477,46 @@ class PlannerAPI:
         return result
 
     @_locked
-    def add_task(self, name, priority, scope, category_id=None, repeatable=0, hopscotch=0):
+    def get_month_overview(self, year, month):
+        today = date.today()
+        try:
+            year, month = int(year), int(month)
+            first = date(year, month, 1)
+        except (TypeError, ValueError):
+            year, month, first = today.year, today.month, date(today.year, today.month, 1)
+        last = date(year, month, calendar.monthrange(year, month)[1])
+        # Grid always spans full weeks (Monday on/before the 1st through Sunday
+        # on/before the last day) so the UI never has to special-case a partial
+        # first/last row — every month renders as a clean 7-wide grid.
+        grid_start = first - timedelta(days=first.weekday())
+        grid_end   = last + timedelta(days=6 - last.weekday())
+        rows = self._db.execute("""
+            SELECT t.id, t.name, t.priority, t.completed, t.today_date,
+                   c.color AS cat_color
+            FROM tasks t
+            LEFT JOIN categories c ON t.category_id = c.id
+            WHERE t.today_date BETWEEN ? AND ?
+            ORDER BY t.today_date, t.completed, t.priority
+        """, (str(grid_start), str(grid_end))).fetchall()
+        by_date = {}
+        for r in rows:
+            by_date.setdefault(r["today_date"], []).append(dict(r))
+        days = []
+        d = grid_start
+        while d <= grid_end:
+            ds = str(d)
+            days.append({
+                "date":     ds,
+                "day_num":  d.day,
+                "in_month": d.month == month,
+                "is_today": ds == str(today),
+                "tasks":    by_date.get(ds, []),
+            })
+            d += timedelta(days=1)
+        return {"year": year, "month": month, "today": str(today), "days": days}
+
+    @_locked
+    def add_task(self, name, priority, scope, category_id=None, repeatable=0, hopscotch=0, target_date=None):
         name = clean_name(name)
         if not name:
             return {"ok": False, "error": "empty name"}
@@ -441,8 +524,13 @@ class PlannerAPI:
         scope      = valid_scope(scope)
         today      = str(date.today())
         ws         = str(week_start_of(date.today()))
-        today_date = today if scope == "today" else None
-        history    = today if scope == "today" else ""
+        target_date = valid_date_str(target_date) if target_date else None
+        # target_date lets a 'today'-scope task be pinned to any day, not just
+        # today — this is what makes forward scheduling (Calendar tab, the
+        # `schedule` CLI mode) just a parameter on the same insert path that
+        # the Morning tab's plain "add" already uses.
+        today_date = (target_date or today) if scope == "today" else None
+        history    = today_date or ""
         cid        = valid_task_id(category_id)
         rep        = 1 if repeatable else 0
         hop        = 1 if hopscotch else 0
@@ -460,7 +548,7 @@ class PlannerAPI:
     @_locked
     def get_categories(self):
         rows = self._db.execute(
-            "SELECT id, name, color FROM categories ORDER BY name COLLATE NOCASE"
+            "SELECT id, name, color, counts_as_rest FROM categories ORDER BY name COLLATE NOCASE"
         ).fetchall()
         return [dict(r) for r in rows]
 
@@ -589,6 +677,16 @@ class PlannerAPI:
         return {"ok": True}
 
     @_locked
+    def set_category_rest(self, category_id, counts_as_rest):
+        cid = valid_task_id(category_id)
+        if cid is None:
+            return {"ok": False, "error": "invalid category id"}
+        flag = 1 if counts_as_rest else 0
+        self._db.execute("UPDATE categories SET counts_as_rest=? WHERE id=?", (flag, cid))
+        self._db.commit()
+        return {"ok": True, "counts_as_rest": flag}
+
+    @_locked
     def set_task_category(self, task_id, category_id):
         tid = valid_task_id(task_id)
         if tid is None:
@@ -650,6 +748,26 @@ class PlannerAPI:
         """, (today, tid))
         if cur.rowcount:
             self._append_history(tid, today)
+        self._db.commit()
+        return {"ok": True}
+
+    @_locked
+    def schedule_task(self, task_id, target_date):
+        tid = valid_task_id(task_id)
+        if tid is None:
+            return {"ok": False, "error": "invalid id"}
+        ds = valid_date_str(target_date)
+        if ds is None:
+            return {"ok": False, "error": "invalid date"}
+        if ds < str(date.today()):
+            return {"ok": False, "error": "can't schedule into the past"}
+        cur = self._db.execute("""
+            UPDATE tasks
+            SET scope='today', today_date=?, completed=0, completed_at=NULL
+            WHERE id=? AND scope='weekly'
+        """, (ds, tid))
+        if cur.rowcount:
+            self._append_history(tid, ds)
         self._db.commit()
         return {"ok": True}
 
@@ -741,7 +859,7 @@ class PlannerAPI:
         for r in rows:
             d = dict(r)
             d["days"] = [dict(x) for x in self._db.execute(
-                "SELECT date, count, hit, used_allowance FROM run_days WHERE run_id=? ORDER BY date",
+                "SELECT date, count, hit, used_allowance, is_rest FROM run_days WHERE run_id=? ORDER BY date",
                 (r["id"],)
             ).fetchall()]
             out.append(d)
@@ -1022,6 +1140,73 @@ def run_status():
     conn.close()
 
 
+_PRIORITY_BY_NAME = {"high": 1, "medium": 2, "low": 3}
+
+def run_schedule(argv):
+    """
+    Non-interactive write path for adding a task from outside the running
+    app — e.g. a Claude Code session in another project proposing schedule
+    entries (see the `to-planner` skill). Prints one plain-text result line
+    and exits nonzero on failure, so the caller gets an unambiguous signal.
+    """
+    parser = argparse.ArgumentParser(prog="planner schedule")
+    parser.add_argument("--name", required=True)
+    parser.add_argument("--date", help="YYYY-MM-DD; required unless --scope weekly")
+    parser.add_argument("--priority", default="medium", choices=tuple(_PRIORITY_BY_NAME))
+    parser.add_argument("--category")
+    parser.add_argument("--scope", default="today", choices=("today", "weekly"))
+    parser.add_argument("--repeatable", action="store_true")
+    args = parser.parse_args(argv)
+
+    if args.scope == "today" and not args.date:
+        print("Error: --date is required with --scope today (use --scope weekly for an undated backlog item).")
+        sys.exit(1)
+
+    target_date = None
+    if args.date:
+        target_date = valid_date_str(args.date)
+        if target_date is None:
+            print(f"Error: invalid date '{args.date}' (expected YYYY-MM-DD).")
+            sys.exit(1)
+
+    conn = open_db()
+    init_db(conn)
+
+    cid = None
+    if args.category:
+        cat_name = clean_name(args.category)[:50]
+        row = conn.execute(
+            "SELECT id FROM categories WHERE name=? COLLATE NOCASE", (cat_name,)
+        ).fetchone()
+        if row:
+            cid = row["id"]
+        else:
+            # Plain INSERT, not the add_category API method — that method
+            # also force-updates the color on every call, which would stomp
+            # an existing category's color if the name match were off by
+            # case. A brand-new category is the only case reached here.
+            cur = conn.execute(
+                "INSERT INTO categories (name, color) VALUES (?, ?)", (cat_name, "#6aaef0")
+            )
+            conn.commit()
+            cid = cur.lastrowid
+
+    api = PlannerAPI(conn)
+    result = api.add_task(
+        args.name, _PRIORITY_BY_NAME[args.priority], args.scope,
+        category_id=cid, repeatable=1 if args.repeatable else 0, target_date=target_date,
+    )
+    conn.close()
+
+    if not result.get("ok"):
+        print(f"Error: {result.get('error', 'could not add task')}")
+        sys.exit(1)
+
+    when = target_date if args.scope == "today" else "weekly backlog"
+    cat_label = f", {args.category}" if args.category else ""
+    print(f'Added: "{args.name}" -> {when} ({args.priority}{cat_label})')
+
+
 def run_install():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     cfg = load_config()
@@ -1147,13 +1332,16 @@ def run_window(mode: str):
 # ── Entry ─────────────────────────────────────────────────────────────────────
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "morning"
+    if mode == "schedule":
+        run_schedule(sys.argv[2:])
+        return
     {
         "cleanup": run_cleanup,
         "status":  run_status,
         "install": run_install,
     }.get(mode, lambda: (
         run_window(mode) if mode in ("morning", "evening", "pin")
-        else (print("Usage: planner [morning|evening|pin|cleanup|status|install]") or sys.exit(1))
+        else (print("Usage: planner [morning|evening|pin|cleanup|status|install|schedule]") or sys.exit(1))
     ))()
 
 

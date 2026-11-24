@@ -58,17 +58,44 @@
   .run-chip:hover { border-color: var(--accent); }
   .run-chip.broken { border-color: var(--warn); color: var(--warn); }
   .run-chip.completed { border-color: var(--low); color: var(--low); }
-  .run-dots { display: flex; gap: 2px; }
+  .run-dots { display: flex; align-items: center; gap: 2px; }
   .run-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
   .run-dot.hit   { background: var(--low); }
+  .run-dot.rest  { background: var(--accent); }
   .run-dot.allow { background: var(--med); }
   .run-dot.miss  { background: var(--warn); }
+  .run-history { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; margin-bottom: 7px; }
+  .run-dot.bucket { border-radius: 50%; flex-shrink: 0; }
   .run-add-btn {
     background: none; border: 1px dashed var(--border); border-radius: 12px;
     color: var(--muted); font-size: 10.5px; padding: 3px 10px; cursor: pointer;
     transition: border-color 0.1s, color 0.1s;
   }
   .run-add-btn:hover { border-color: var(--accent); color: var(--text); }
+  .run-past-btn {
+    background: none; border: 1px solid var(--border); border-radius: 12px;
+    color: var(--muted); font-size: 10.5px; padding: 3px 10px; cursor: pointer;
+    transition: border-color 0.1s, color 0.1s;
+  }
+  .run-past-btn:hover { border-color: var(--accent); color: var(--text); }
+
+  #past-runs-portal {
+    display: none; position: fixed;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px; width: 230px;
+    max-height: 280px; overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35); z-index: 1000;
+  }
+  #past-runs-portal.open { display: block; }
+  .past-run-row {
+    padding: 5px 2px; border-bottom: 1px solid var(--border); cursor: pointer;
+  }
+  .past-run-row:last-child { border-bottom: none; }
+  .past-run-row:hover .past-run-name { color: var(--accent); }
+  .past-run-name { display: block; font-size: 11.5px; color: var(--text); }
+  .past-run-meta { display: block; font-size: 9.5px; color: var(--muted); margin-top: 1px; }
+  .past-run-row.broken .past-run-meta { color: var(--warn); }
+  .past-run-row.completed .past-run-meta { color: var(--low); }
 
   .run-panel {
     display: none; background: var(--surface); border-bottom: 1px solid var(--border);
@@ -329,16 +356,27 @@
   .task-check.locked:hover { border-color: var(--border); }
 
   .task-cat-wrap { flex-shrink: 0; }
-  #task-cat-portal, #task-pri-portal {
+  #task-cat-portal, #task-pri-portal, #task-day-portal {
     display: none; position: fixed;
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 6px; padding: 5px; min-width: 190px;
     max-height: 200px; overflow-y: auto;
     box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 1000;
   }
-  #task-cat-portal.open, #task-pri-portal.open { display: block; }
+  #task-cat-portal.open, #task-pri-portal.open, #task-day-portal.open { display: block; }
   #task-cat-portal::-webkit-scrollbar, #task-pri-portal::-webkit-scrollbar { width: 3px; }
   #task-cat-portal::-webkit-scrollbar-thumb, #task-pri-portal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .task-day-option-date { display: flex; flex-direction: column; gap: 6px; padding: 2px; }
+  .task-day-option-date input[type="date"] {
+    background: var(--input-bg); border: 1px solid var(--border);
+    border-radius: 3px; color: var(--text); font: inherit; font-size: 11px;
+    padding: 3px 6px;
+  }
+  .task-day-set-btn {
+    background: none; border: 1px solid var(--border); border-radius: 3px;
+    color: var(--text); font-size: 11px; padding: 3px 8px; cursor: pointer;
+  }
+  .task-day-set-btn:hover { border-color: var(--accent); color: var(--accent); }
   .task-cat-option {
     display: flex; align-items: center; gap: 6px;
     padding: 4px 6px; border-radius: 3px; cursor: pointer; font-size: 11px;
@@ -403,7 +441,7 @@
   }
   .cat-option:hover { background: var(--btn-hover); }
   .cat-option.selected { background: var(--btn-hover); font-weight: 600; }
-  .cat-swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .cat-swatch { display: block; width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
   .cat-option-name { flex: 1; }
   .cat-rename-btn {
     background: none; border: none; cursor: pointer; color: var(--muted);
@@ -411,6 +449,13 @@
     transition: opacity 0.1s, color 0.1s;
   }
   .cat-rename-btn:hover { opacity: 1; color: var(--accent); }
+  .cat-rest-btn {
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    font-size: 10px; padding: 1px 3px; border-radius: 3px; opacity: 0.4; flex-shrink: 0;
+    transition: opacity 0.1s, color 0.1s;
+  }
+  .cat-rest-btn:hover { opacity: 1; }
+  .cat-rest-btn.active { opacity: 1; color: var(--accent); }
   .cat-name-edit-input {
     width: 100%; background: var(--input-bg); border: 1px solid var(--accent);
     border-radius: 3px; color: var(--text); font: inherit; font-size: 11px;
@@ -604,6 +649,132 @@
   #day-detail-portal .task-row { padding: 3px 2px; }
   #day-detail-portal .task-name { font-size: 11.5px; }
 
+  /* ── Calendar tab ── */
+  .cal-head {
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    padding: 8px 0;
+  }
+  .cal-nav-btn {
+    background: none; border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text); font-size: 12px; padding: 2px 9px; cursor: pointer;
+  }
+  .cal-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .cal-month-label { font-size: 13px; font-weight: 600; color: var(--text); min-width: 130px; text-align: center; }
+  .cal-today-btn {
+    background: none; border: 1px dashed var(--border); border-radius: 10px;
+    color: var(--muted); font-size: 10px; padding: 2px 9px; cursor: pointer;
+  }
+  .cal-today-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .cal-weekdays {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    padding: 0 10px; font-size: 9px; letter-spacing: 0.08em;
+    color: var(--muted); text-transform: uppercase; text-align: center;
+  }
+  .cal-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    gap: 0; padding: 2px 10px 10px;
+  }
+  .cal-day {
+    border: 1px solid var(--border); border-radius: 4px; margin: 2px;
+    padding: 4px 3px; height: 72px; overflow: hidden; min-width: 0;
+    cursor: pointer;
+  }
+  .cal-day:hover { border-color: var(--accent); }
+  .cal-day.today { background: var(--today-col); border-color: var(--today-bdr); }
+  .cal-day.out-of-month { opacity: 0.35; }
+  .cal-day-num { font-size: 11px; font-weight: 600; color: var(--text); }
+  .cal-day.today .cal-day-num { color: var(--accent); }
+  .cal-day-tasks { display: flex; flex-direction: column; gap: 2px; overflow: hidden; margin-top: 2px; }
+  /* Overrides .tab-pane's overflow:hidden — at higher zoom the 6-row grid can
+     outgrow the window, and unlike Morning/Evening (which already have their
+     own internal scrollers — week-scroll, panel-body) nothing inside the
+     calendar grid itself scrolls, so the pane itself needs to or days become
+     genuinely unreachable rather than just zoomed. */
+  #tab-calendar { overflow-y: auto; }
+
+  #cal-day-portal {
+    display: none; position: fixed;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px; width: 230px;
+    max-height: 300px; overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35); z-index: 1000;
+  }
+  #cal-day-portal.open { display: block; }
+  #cal-day-portal .task-row { padding: 3px 2px; }
+  #cal-day-portal .task-name { font-size: 11.5px; }
+  .cal-add-row { display: flex; gap: 4px; margin-top: 6px; }
+  .cal-add-input {
+    flex: 1; background: var(--input-bg); border: 1px solid var(--border);
+    border-radius: 3px; color: var(--text); font: inherit; font-size: 11px;
+    padding: 3px 6px; min-width: 0;
+  }
+  .cal-add-input:focus { outline: none; border-color: var(--accent); }
+  .cal-add-btn {
+    background: none; border: 1px solid var(--border); border-radius: 3px;
+    color: var(--text); font-size: 11px; padding: 3px 8px; cursor: pointer;
+  }
+  .cal-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .cal-backlog-toggle-btn {
+    display: block; width: 100%; margin-top: 6px;
+    background: none; border: none; color: var(--muted);
+    font-size: 10.5px; text-align: left; padding: 3px 2px; cursor: pointer;
+  }
+  .cal-backlog-toggle-btn:hover { color: var(--accent); }
+  .cal-backlog-list {
+    max-height: 110px; overflow-y: auto; margin-top: 2px;
+    border-top: 1px solid var(--border); padding-top: 4px;
+  }
+  .cal-backlog-list::-webkit-scrollbar { width: 3px; }
+  .cal-backlog-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .cal-backlog-row {
+    display: flex; align-items: center; gap: 6px; padding: 3px 2px;
+  }
+  .cal-backlog-row .task-name { font-size: 11.5px; flex: 1; }
+  .cal-backlog-add-btn {
+    background: none; border: 1px solid var(--border); border-radius: 3px;
+    color: var(--text); font-size: 11px; width: 18px; height: 18px;
+    line-height: 1; cursor: pointer; flex-shrink: 0;
+  }
+  .cal-backlog-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Finder (search) ── */
+  .search-btn {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--muted); font-size: 12px; width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: border-color 0.1s, color 0.1s; flex-shrink: 0;
+  }
+  .search-btn:hover { border-color: var(--accent); color: var(--text); }
+  #search-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    z-index: 200; align-items: flex-start; justify-content: center; padding-top: 10vh;
+  }
+  #search-overlay.open { display: flex; }
+  .search-panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    width: 460px; max-width: 92vw; max-height: 70vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.35); overflow: hidden;
+  }
+  .search-input-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .search-input-row span { color: var(--muted); font-size: 14px; }
+  #search-input {
+    flex: 1; background: none; border: none; color: var(--text);
+    font: inherit; font-size: 14px; outline: none;
+  }
+  .search-hint { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+  .search-results { overflow-y: auto; padding: 6px; }
+  .search-results .task-row { padding: 5px 6px; }
+  .search-ctx {
+    font-size: 9.5px; color: var(--muted); background: var(--input-bg);
+    border: 1px solid var(--border); border-radius: 8px; padding: 1px 7px;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .search-empty { padding: 22px 12px; text-align: center; color: var(--muted); font-size: 12px; }
+
   /* ── Settings ── */
   .settings-panel {
     display: none; background: var(--surface);
@@ -675,16 +846,35 @@
 <!-- Portals — live at body level to escape overflow clipping -->
 <div id="task-cat-portal"></div>
 <div id="task-pri-portal"></div>
+<div id="task-day-portal"></div>
 <div id="week-more-portal"></div>
 <div id="chart-tip-portal"></div>
 <div id="day-detail-portal">
   <div class="day-detail-title" id="day-detail-title"></div>
   <div id="day-detail-body"></div>
 </div>
+<div id="cal-day-portal">
+  <div class="day-detail-title" id="cal-day-title"></div>
+  <div id="cal-day-body"></div>
+</div>
 <div class="run-detail" id="run-detail-portal">
   <div class="run-detail-title" id="run-detail-title"></div>
   <div class="run-detail-sub" id="run-detail-sub"></div>
   <div id="run-detail-body"></div>
+</div>
+<div id="past-runs-portal">
+  <div class="day-detail-title">Past runs</div>
+  <div id="past-runs-body"></div>
+</div>
+<div id="search-overlay">
+  <div class="search-panel">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input id="search-input" type="text" placeholder="Find a task — matches name or category…" autocomplete="off" spellcheck="false">
+      <span class="search-hint">esc to close</span>
+    </div>
+    <div class="search-results" id="search-results"></div>
+  </div>
 </div>
 
 <div class="header theme-bar">
@@ -693,6 +883,7 @@
     <div class="header-date" id="header-date"></div>
   </div>
   <div class="header-right">
+    <button class="search-btn" id="search-open-btn" type="button" title="Find a task (&#8984;F)">&#128269;</button>
     <span class="countdown-chip" id="countdown"></span>
     <span class="clock" id="clock"></span>
   </div>
@@ -712,6 +903,7 @@
 <div class="tab-bar theme-bar">
   <button class="tab-btn" data-tab="morning" type="button">Morning</button>
   <button class="tab-btn" data-tab="evening" type="button">Evening</button>
+  <button class="tab-btn" data-tab="calendar" type="button">Calendar</button>
 </div>
 
 <div class="tab-content">
@@ -828,6 +1020,19 @@
     </div>
     <div class="week-chart theme-bar" id="week-chart"></div>
   </div>
+
+  <div class="tab-pane" id="tab-calendar" hidden>
+    <div class="cal-head theme-bar">
+      <button class="cal-nav-btn" id="cal-prev-btn" type="button">&#8249;</button>
+      <span class="cal-month-label" id="cal-month-label"></span>
+      <button class="cal-nav-btn" id="cal-next-btn" type="button">&#8250;</button>
+      <button class="cal-today-btn" id="cal-today-btn" type="button">Today</button>
+    </div>
+    <div class="cal-weekdays">
+      <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+  </div>
 </div>
 
 <div class="settings-panel theme-bar" id="settings-panel">
@@ -890,6 +1095,42 @@ function updateCountdown() {
     `<b>${daysLeft}</b> day${daysLeft === 1 ? '' : 's'} left in ${now.getFullYear()}`;
 }
 
+// ── Zoom (Cmd+= / Cmd+- / Cmd+0) — whole window, all three tabs, same
+// mechanism as the pin window's zoom. Bounded tighter than the pin window's
+// (0.8–1.6 vs 0.7–1.8) since this window is far denser — the Calendar tab's
+// own pane scrolls (see #tab-calendar's overflow override) so zooming in
+// never makes a day genuinely unreachable, just means more scrolling. ──
+const ZOOM_MIN = 0.8, ZOOM_MAX = 1.6, ZOOM_STEP = 0.1;
+let zoomLevel = 1;
+let zoomTitleTimer = null;
+
+function applyZoom() {
+  document.body.style.zoom = zoomLevel;
+  document.title = `Daily Planner (${Math.round(zoomLevel * 100)}%)`;
+  clearTimeout(zoomTitleTimer);
+  zoomTitleTimer = setTimeout(() => { document.title = 'Daily Planner'; }, 1200);
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!e.metaKey) return;
+  if (e.key === 'f' || e.key === 'F') {
+    e.preventDefault();
+    openSearch();
+  } else if (e.key === '=' || e.key === '+') {
+    e.preventDefault();
+    zoomLevel = Math.min(ZOOM_MAX, +(zoomLevel + ZOOM_STEP).toFixed(2));
+    applyZoom();
+  } else if (e.key === '-') {
+    e.preventDefault();
+    zoomLevel = Math.max(ZOOM_MIN, +(zoomLevel - ZOOM_STEP).toFixed(2));
+    applyZoom();
+  } else if (e.key === '0') {
+    e.preventDefault();
+    zoomLevel = 1;
+    applyZoom();
+  }
+});
+
 // ── Theme picker (applyTheme, renderThemeMenu, selectTheme) — shared, see ui/theme-menu.js ──
 // @@THEME_MENU_JS@@
 
@@ -897,10 +1138,12 @@ function updateCountdown() {
 const DEFAULT_TAB = "@@DEFAULT_TAB@@";
 
 function selectTab(tab) {
-  document.getElementById('tab-morning').hidden = tab !== 'morning';
-  document.getElementById('tab-evening').hidden = tab !== 'evening';
+  document.getElementById('tab-morning').hidden  = tab !== 'morning';
+  document.getElementById('tab-evening').hidden  = tab !== 'evening';
+  document.getElementById('tab-calendar').hidden = tab !== 'calendar';
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('footer-cmd').textContent = 'planner ' + tab;
+  if (tab === 'calendar') loadCalendar();
 }
 document.querySelectorAll('.tab-btn').forEach(b =>
   b.addEventListener('click', () => selectTab(b.dataset.tab))
@@ -938,6 +1181,91 @@ function showFeedback(msg, ok = true) {
 function catPod(name, color) {
   if (!name) return '';
   return `<span class="cat-pod" style="background:${esc(color)}" title="${esc(name)}">${esc(name.slice(0,10))}</span>`;
+}
+
+// ── Finder (search by keyword, regardless of task/category wording) ──
+const SEARCH_OVERLAY = document.getElementById('search-overlay');
+const SEARCH_INPUT   = document.getElementById('search-input');
+let _searchDebounce   = null;
+
+function searchContextLabel(t) {
+  if (t.scope === 'weekly') return 'Weekly';
+  if (!t.today_date) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(t.today_date + 'T00:00:00');
+  if (d.getTime() === today.getTime()) return 'Today';
+  const sameYear = d.getFullYear() === today.getFullYear();
+  return d.toLocaleDateString('en-US', sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function openSearch() {
+  SEARCH_OVERLAY.classList.add('open');
+  SEARCH_INPUT.focus();
+  renderSearchResults([]);
+  if (SEARCH_INPUT.value.trim()) runSearch();
+}
+
+function closeSearch() {
+  SEARCH_OVERLAY.classList.remove('open');
+}
+
+function renderSearchResults(tasks, queried) {
+  const body = document.getElementById('search-results');
+  if (!queried) {
+    body.innerHTML = '<div class="search-empty">Type to find a task by keyword — matches task text or its category, anywhere.</div>';
+    return;
+  }
+  if (!tasks.length) {
+    body.innerHTML = '<div class="search-empty">No matches.</div>';
+    return;
+  }
+  body.innerHTML = tasks.map(t => `
+    <div class="task-row ${t.completed ? 'done-row':''}">
+      <div class="task-check ${t.completed ? 'checked':''}" onclick="searchToggleDone(${t.id},${t.completed})"></div>
+      <span class="pri-badge ${PRI_CLASS[t.priority]}">${PRI_LABEL[t.priority]}</span>
+      <span class="task-name">${mdFormat(t.name)}</span>
+      ${t.cat_name ? catPod(t.cat_name, t.cat_color) : ''}
+      <span class="search-ctx">${esc(searchContextLabel(t))}</span>
+      ${t.scope === 'weekly' ? `<button class="task-btn promote" onclick="searchPromote(${t.id})" title="Move to today">&#8593;</button>` : ''}
+    </div>
+  `).join('');
+}
+
+async function runSearch() {
+  const q = SEARCH_INPUT.value.trim();
+  if (!q) { renderSearchResults([]); return; }
+  try {
+    const tasks = await api().search_tasks(q);
+    renderSearchResults(tasks, true);
+  } catch(e) {}
+}
+
+SEARCH_INPUT.addEventListener('input', () => {
+  clearTimeout(_searchDebounce);
+  _searchDebounce = setTimeout(runSearch, 150);
+});
+SEARCH_INPUT.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.stopPropagation(); closeSearch(); }
+});
+document.getElementById('search-open-btn').addEventListener('click', openSearch);
+SEARCH_OVERLAY.addEventListener('click', (e) => {
+  if (e.target === SEARCH_OVERLAY) closeSearch();
+});
+
+async function searchToggleDone(id, wasDone) {
+  try {
+    const res = wasDone ? await api().unmark_done(id) : await api().mark_done(id);
+    if (res && res.ok === false) { showFeedback(res.error || 'Blocked', false); return; }
+    await Promise.all([loadAll(), runSearch()]);
+  } catch(e) { showFeedback('Error', false); }
+}
+
+async function searchPromote(id) {
+  try {
+    await api().promote_task(id);
+    await Promise.all([loadAll(), runSearch()]);
+    showFeedback('Moved to today');
+  } catch(e) { showFeedback('Error', false); }
 }
 
 // ── Category state (Morning: assign-on-add + inline recolor) ──
@@ -985,6 +1313,9 @@ async function loadCategoryPicker() {
                onchange="recolorCategory(${c.id}, this.value)">
       </label>
       <span class="cat-option-name" data-name="${esc(c.name)}" onclick="selectCategory(${c.id},'${esc(c.color)}','${esc(c.name)}')">${esc(c.name)}</span>
+      <button class="cat-rest-btn${c.counts_as_rest ? ' active' : ''}" type="button"
+              title="${c.counts_as_rest ? 'Counts as a rest day for runs' : 'Mark as a rest-day category (satisfies the day requirement for any run)'}"
+              onclick="event.stopPropagation(); toggleCategoryRest(${c.id}, ${c.counts_as_rest ? 0 : 1})">&#128564;</button>
       <button class="cat-rename-btn" type="button" title="Rename category"
               onclick="event.stopPropagation(); startEditCategoryName(event,${c.id},this.previousElementSibling)">&#9998;</button>
     </div>`
@@ -1026,6 +1357,14 @@ async function recolorCategory(catId, color) {
     } else {
       showFeedback(res.error || 'Error', false);
     }
+  } catch(e) { showFeedback('Error', false); }
+}
+
+async function toggleCategoryRest(catId, flag) {
+  try {
+    const res = await api().set_category_rest(catId, flag);
+    if (res.ok) await loadAll();
+    else showFeedback(res.error || 'Error', false);
   } catch(e) { showFeedback('Error', false); }
 }
 
@@ -1108,6 +1447,10 @@ document.addEventListener('click', (e) => {
     TPP.classList.remove('open');
     _openTpp = null;
   }
+  if (_openTdp !== null && !TDP.contains(e.target)) {
+    TDP.classList.remove('open');
+    _openTdp = null;
+  }
   const moreMenu = document.getElementById('theme-more-menu');
   if (moreMenu && !moreMenu.contains(e.target) && e.target.id !== 'theme-more-btn') {
     moreMenu.classList.remove('open');
@@ -1117,6 +1460,12 @@ document.addEventListener('click', (e) => {
   }
   if (!RUN_DETAIL.contains(e.target) && !e.target.closest('.run-chip') && RUN_DETAIL.classList.contains('open')) {
     RUN_DETAIL.classList.remove('open');
+  }
+  if (!CAL_DAY.contains(e.target) && !e.target.closest('.cal-day') && CAL_DAY.classList.contains('open')) {
+    hideCalDay();
+  }
+  if (!PAST_RUNS.contains(e.target) && e.target.id !== 'run-past-btn' && PAST_RUNS.classList.contains('open')) {
+    hidePastRuns();
   }
 });
 document.getElementById('cat-tag-btn').addEventListener('click', (e) => {
@@ -1211,8 +1560,9 @@ document.getElementById('week-scroll').addEventListener('scroll', () => {
 
 const WMP = document.getElementById('week-more-portal');
 
-function showMoreTasks(e, dayIdx) {
-  const hidden = weekMoreHidden[dayIdx] || [];
+// Shared by Week at a Glance and the Calendar tab grid — both just need to
+// pop a list of dots near whatever cell was hovered/clicked.
+function showHiddenDots(e, hidden) {
   if (!hidden.length) return;
   WMP.innerHTML = hidden.map(dayDotHtml).join('');
   const rect = e.currentTarget.getBoundingClientRect();
@@ -1221,8 +1571,151 @@ function showMoreTasks(e, dayIdx) {
   WMP.classList.add('open');
 }
 
+function showMoreTasks(e, dayIdx) {
+  showHiddenDots(e, weekMoreHidden[dayIdx] || []);
+}
+
 function hideMoreTasks() {
   WMP.classList.remove('open');
+}
+
+// ── Calendar tab ──
+let calYear, calMonth, calOverview = null, calOpenDate = null, calMoreHidden = [];
+let calBacklogOpen = false, calBacklogCache = [];
+const CAL_DAY = document.getElementById('cal-day-portal');
+
+function calInitDate() {
+  const n = new Date();
+  calYear  = n.getFullYear();
+  calMonth = n.getMonth() + 1;
+}
+calInitDate();
+
+async function loadCalendar() {
+  try { calOverview = await api().get_month_overview(calYear, calMonth); }
+  catch(e) { return; }
+  calYear  = calOverview.year;
+  calMonth = calOverview.month;
+  document.getElementById('cal-month-label').textContent =
+    new Date(calYear, calMonth - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const CAP = 3;
+  calMoreHidden = [];
+  document.getElementById('cal-grid').innerHTML = calOverview.days.map(d => {
+    const shown = d.tasks.length <= CAP ? d.tasks : d.tasks.slice(0, CAP - 1);
+    const extra = d.tasks.length - shown.length;
+    const dots  = shown.map(dayDotHtml).join('');
+    const dayIdx = calMoreHidden.length;
+    calMoreHidden.push(d.tasks.slice(shown.length));
+    const more = extra > 0
+      ? `<div class="day-more" onclick="event.stopPropagation(); calShowMore(event,${dayIdx})">+${extra} more</div>`
+      : '';
+    const cls = ['cal-day', d.is_today ? 'today' : '', d.in_month ? '' : 'out-of-month'].filter(Boolean).join(' ');
+    return `<div class="${cls}" onclick="showCalDay(event,'${d.date}')">
+      <div class="cal-day-num">${d.day_num}</div>
+      <div class="cal-day-tasks">${dots}${more}</div>
+    </div>`;
+  }).join('');
+  // Keep the detail popover in sync if it's open while the grid reloads underneath it.
+  if (calOpenDate && CAL_DAY.classList.contains('open')) renderCalDay(null);
+}
+
+function calShowMore(e, dayIdx) {
+  showHiddenDots(e, calMoreHidden[dayIdx] || []);
+}
+
+function calPrevMonth() { calMonth--; if (calMonth < 1)  { calMonth = 12; calYear--; } loadCalendar(); }
+function calNextMonth() { calMonth++; if (calMonth > 12) { calMonth = 1;  calYear++; } loadCalendar(); }
+function calGoToday()   { calInitDate(); loadCalendar(); }
+
+document.getElementById('cal-prev-btn').addEventListener('click', calPrevMonth);
+document.getElementById('cal-next-btn').addEventListener('click', calNextMonth);
+document.getElementById('cal-today-btn').addEventListener('click', calGoToday);
+
+function showCalDay(e, dateStr) {
+  calOpenDate = dateStr;
+  calBacklogOpen = false;
+  renderCalDay(e.currentTarget.getBoundingClientRect());
+}
+
+// rect is omitted (null) on a re-render that shouldn't move the popover —
+// e.g. right after adding a task, or a background grid refresh while it's open.
+function renderCalDay(rect) {
+  if (!calOverview || !calOpenDate) return;
+  const day   = calOverview.days.find(d => d.date === calOpenDate) || { tasks: [] };
+  const label = new Date(calOpenDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  document.getElementById('cal-day-title').textContent = label;
+  // Past days stay read-only history, same as Week at a Glance — only today/future get an add form.
+  const isPast = calOpenDate < calOverview.today;
+  const body = document.getElementById('cal-day-body');
+  body.innerHTML =
+    (day.tasks.length ? day.tasks.map(t =>
+      `<div class="task-row ${t.completed ? 'done-row' : ''}">
+        <span class="pri-badge ${PRI_CLASS[t.priority]}">${PRI_LABEL[t.priority]}</span>
+        <span class="task-name">${mdFormat(t.name)}</span>
+      </div>`
+    ).join('') : '<div class="empty-state">Nothing scheduled.</div>') +
+    (isPast ? '' : `<div class="cal-add-row">
+      <input class="cal-add-input" id="cal-add-input" type="text" placeholder="add a task for this day…" maxlength="280">
+      <button class="cal-add-btn" type="button" onclick="calAddTask()">Add</button>
+    </div>
+    <button class="cal-backlog-toggle-btn" type="button" onclick="calToggleBacklogPicker()">
+      ${calBacklogOpen ? '&#9662;' : '&#9656;'} From backlog
+    </button>
+    ${calBacklogOpen ? `<div class="cal-backlog-list">${
+      calBacklogCache.length
+        ? calBacklogCache.map(t => `
+          <div class="cal-backlog-row">
+            <span class="pri-badge ${PRI_CLASS[t.priority]}">${PRI_LABEL[t.priority]}</span>
+            <span class="task-name">${mdFormat(t.name)}</span>
+            <button class="cal-backlog-add-btn" type="button" onclick="calAddFromBacklog(${t.id})" title="Add to this day">&#43;</button>
+          </div>`).join('')
+        : '<div class="empty-state">Backlog clear.</div>'
+    }</div>` : ''}`);
+  if (!isPast) {
+    document.getElementById('cal-add-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') calAddTask();
+    });
+  }
+  if (rect) {
+    CAL_DAY.style.left = Math.min(rect.left, window.innerWidth - 240) + 'px';
+    CAL_DAY.style.top  = Math.min(rect.bottom + 4, window.innerHeight - 310) + 'px';
+  }
+  CAL_DAY.classList.add('open');
+}
+
+async function calAddTask() {
+  const input = document.getElementById('cal-add-input');
+  const name  = input.value.trim();
+  if (!name) return;
+  try {
+    const res = await api().add_task(name, 2, 'today', null, 0, 0, calOpenDate);
+    if (res.ok) await loadCalendar();
+    else showFeedback(res.error || 'Error', false);
+  } catch(e) { showFeedback('Error', false); }
+}
+
+async function calToggleBacklogPicker() {
+  calBacklogOpen = !calBacklogOpen;
+  if (calBacklogOpen) {
+    try { calBacklogCache = await api().get_weekly_backlog(); } catch(e) { calBacklogCache = []; }
+  }
+  renderCalDay(null);
+}
+
+async function calAddFromBacklog(taskId) {
+  try {
+    const res = await api().schedule_task(taskId, calOpenDate);
+    if (!res.ok) { showFeedback(res.error || 'Error', false); return; }
+    calBacklogCache = calBacklogCache.filter(t => t.id !== taskId);
+    await loadCalendar();
+  } catch(e) { showFeedback('Error', false); }
+}
+
+function hideCalDay() {
+  CAL_DAY.classList.remove('open');
+  calOpenDate = null;
+  calBacklogOpen = false;
 }
 
 // ── Today list (Morning — full controls: drag, priority/category pickers, repeat, delete) ──
@@ -1287,6 +1780,7 @@ async function loadWeekly() {
       <button class="task-btn repeat ${t.repeatable ? 'active' : ''}" onclick="toggleRepeatable(${t.id},${t.repeatable})" title="${t.repeatable ? 'Repeating — re-added to weekly at 2am when completed' : 'Make repeating'}">&#8635;</button>
       <button class="task-btn hopscotch ${t.hopscotch ? 'active' : ''}" onclick="toggleHopscotch(${t.id},${t.hopscotch})" title="${t.hopscotch ? ('Hopscotch — needs a rest day between completions' + (t.hop_locked_until ? ' (resting until ' + t.hop_locked_until + ')' : '')) : 'Make hopscotch: needs a rest day between completions'}">&#129432;</button>
       <button class="task-btn promote" onclick="promoteTask(${t.id})" title="Move to today">&#8593; today</button>
+      <button class="task-btn schedule" onclick="openTaskDayPicker(event,${t.id})" title="Schedule to a specific day">&#128197;</button>
       <button class="task-btn delete"  onclick="deleteTask(${t.id})"  title="Remove">&#10005;</button>
     </div>`
   ).join('');
@@ -1442,19 +1936,100 @@ function hideDayDetail() {
 let runsData = [];
 const RUN_DETAIL = document.getElementById('run-detail-portal');
 
+// Recent days render one dot each; anything older gets merged into fixed-size
+// "bucket" dots so a long-running run's history never grows the row forever.
+// Both numbers are knobs, not magic literals, so the merge rate/size is easy
+// to retune later without touching the rendering logic itself.
+const RUN_RECENT_WINDOW = 7;   // most recent N days shown as individual dots
+const RUN_BUCKET_SIZE   = 7;   // older days merged N at a time into one dot
+const RUN_DOT_PX        = 5;   // individual day dot diameter
+const RUN_BUCKET_MAX_PX = 11;  // bucket dot diameter when it holds a full bucket
+
 function runStatusLabel(r) {
   return r.status === 'active' ? null : r.status;
+}
+
+// Single source of truth for what a day "is" — rest-day passes are reported
+// as their own type (not folded into "hit") so both the flat dot coloring and
+// the merged bucket's color mix can tell a planned rest apart from a skip.
+function dayType(d) {
+  return d.is_rest ? 'rest' : (d.hit ? 'hit' : (d.used_allowance ? 'allow' : 'miss'));
+}
+
+// Chunks the older-than-window days into RUN_BUCKET_SIZE-day groups (oldest
+// first) and tallies each type per group; the most recent window stays
+// ungrouped so today's actual history (not a smear of it) is what you see.
+function summarizeRunDays(days) {
+  const splitAt = Math.max(0, days.length - RUN_RECENT_WINDOW);
+  const older   = days.slice(0, splitAt);
+  const recent  = days.slice(splitAt);
+  const buckets = [];
+  for (let i = 0; i < older.length; i += RUN_BUCKET_SIZE) {
+    const chunk = older.slice(i, i + RUN_BUCKET_SIZE);
+    const tally = { hit: 0, rest: 0, allow: 0, miss: 0 };
+    chunk.forEach(d => tally[dayType(d)]++);
+    buckets.push({ size: chunk.length, ...tally });
+  }
+  return { buckets, recent };
+}
+
+// Renders one bucket as a pie: a conic-gradient slice per type, proportioned
+// by how many of that bucket's days were each type — so a week of all hits
+// and a week with one miss read as visibly different, not just "not clean".
+const BUCKET_COLOR = { hit: 'var(--low)', rest: 'var(--accent)', allow: 'var(--med)', miss: 'var(--warn)' };
+function bucketDotStyle(bucket) {
+  let acc = 0;
+  const stops = [];
+  for (const type of ['hit', 'rest', 'allow', 'miss']) {
+    const c = bucket[type];
+    if (!c) continue;
+    const start = (acc / bucket.size) * 100;
+    acc += c;
+    const end = (acc / bucket.size) * 100;
+    stops.push(`${BUCKET_COLOR[type]} ${start}% ${end}%`);
+  }
+  const px = RUN_DOT_PX + (RUN_BUCKET_MAX_PX - RUN_DOT_PX) * (bucket.size / RUN_BUCKET_SIZE);
+  return `background: conic-gradient(${stops.join(', ')}); width: ${px}px; height: ${px}px;`;
+}
+
+// Shared by the runs bar (glanceable, always visible) and the detail popup
+// (same dots, just wrapped) — one history rendering, not two copies of it.
+function runDotsHtml(days) {
+  const { buckets, recent } = summarizeRunDays(days);
+  const bucketHtml = buckets.map(b =>
+    `<span class="run-dot bucket" style="${bucketDotStyle(b)}"
+           title="${b.size} days — ${b.hit} hit, ${b.rest} rest, ${b.allow} allowance, ${b.miss} missed"></span>`
+  ).join('');
+  const recentHtml = recent.map(d =>
+    `<span class="run-dot ${dayType(d)}" title="${esc(d.date)}"></span>`
+  ).join('');
+  return bucketHtml + recentHtml;
+}
+
+function renderRunHistory(r) {
+  return `<div class="run-history">${runDotsHtml(r.days)}</div>`;
+}
+
+// A finished run (completed/broken/cancelled) stays in the main bar for a
+// couple of days — long enough to actually notice how it ended — then drops
+// out on its own rather than piling up forever. It's never gone for good:
+// "N past" opens the full history, same detail popup, still deletable there.
+const RUN_GRACE_DAYS = 2;
+function daysSinceDate(dateStr) {
+  if (!dateStr) return Infinity;
+  return Math.floor((Date.now() - new Date(dateStr + 'T00:00:00').getTime()) / 86400000);
 }
 
 function renderRunsBar(runs) {
   runsData = runs;
   const bar = document.getElementById('runs-bar');
-  const visible = runs.filter(r => r.status !== 'cancelled');
+  const visible = runs.filter(r =>
+    r.status === 'active' || daysSinceDate(r.ended_date) < RUN_GRACE_DAYS
+  );
+  const pastCount = runs.filter(r => r.status !== 'active').length;
   bar.innerHTML = visible.map(r => {
     const elapsed = r.days.length;
-    const dots = r.days.slice(-14).map(d =>
-      `<span class="run-dot ${d.hit ? 'hit' : (d.used_allowance ? 'allow' : 'miss')}"></span>`
-    ).join('');
+    const dots = runDotsHtml(r.days);
     const statusCls = r.status === 'broken' ? 'broken' : (r.status === 'completed' ? 'completed' : '');
     const label = runStatusLabel(r);
     return `<div class="run-chip ${statusCls}" onclick="showRunDetail(event,${r.id})">
@@ -1462,11 +2037,41 @@ function renderRunsBar(runs) {
       <span class="run-dots">${dots}</span>
       <span>${elapsed}/${r.total_days}${label ? ' · ' + esc(label) : ''}</span>
     </div>`;
-  }).join('') + `<button class="run-add-btn" id="run-add-btn" type="button">+ Run</button>`;
+  }).join('')
+    + `<button class="run-add-btn" id="run-add-btn" type="button">+ Run</button>`
+    + (pastCount ? `<button class="run-past-btn" id="run-past-btn" type="button">${pastCount} past</button>` : '');
   document.getElementById('run-add-btn').addEventListener('click', (e) => {
     e.stopPropagation();
     document.getElementById('run-panel').classList.toggle('open');
   });
+  const pastBtn = document.getElementById('run-past-btn');
+  if (pastBtn) pastBtn.addEventListener('click', (e) => { e.stopPropagation(); showPastRuns(e); });
+}
+
+const PAST_RUNS = document.getElementById('past-runs-portal');
+
+function pastRunRowHtml(r) {
+  const statusCls = r.status === 'broken' ? 'broken' : (r.status === 'completed' ? 'completed' : 'cancelled');
+  return `<div class="past-run-row ${statusCls}" onclick="hidePastRuns(); showRunDetail(event,${r.id})">
+    <span class="past-run-name">${esc(r.name)}</span>
+    <span class="past-run-meta">${r.days.length}/${r.total_days} &middot; ${esc(r.status)}${r.ended_date ? ' &middot; ' + esc(r.ended_date) : ''}</span>
+  </div>`;
+}
+
+function showPastRuns(e) {
+  const past = runsData.filter(r => r.status !== 'active')
+    .sort((a, b) => (b.ended_date || '').localeCompare(a.ended_date || ''));
+  document.getElementById('past-runs-body').innerHTML = past.length
+    ? past.map(pastRunRowHtml).join('')
+    : '<div class="empty-state">No past runs yet.</div>';
+  const rect = e.currentTarget.getBoundingClientRect();
+  PAST_RUNS.style.left = Math.min(rect.left, window.innerWidth - 250) + 'px';
+  PAST_RUNS.style.top  = (rect.bottom + 4) + 'px';
+  PAST_RUNS.classList.add('open');
+}
+
+function hidePastRuns() {
+  PAST_RUNS.classList.remove('open');
 }
 
 async function loadRuns() {
@@ -1507,6 +2112,7 @@ function showRunDetail(e, runId) {
      Status: ${esc(r.status)}`;
   const body = document.getElementById('run-detail-body');
   body.innerHTML =
+    renderRunHistory(r) +
     (r.status === 'active' ? `<button class="run-detail-cancel" onclick="cancelRun(${r.id})">Cancel run</button>` : '') +
     `<button class="run-detail-delete" onclick="deleteRun(${r.id})">Delete</button>`;
   const rect = e.currentTarget.getBoundingClientRect();
@@ -1530,7 +2136,7 @@ async function loadAll() {
   await Promise.all([
     loadWeekGrid(), loadToday(), loadWeekly(), loadCategoryPicker(),
     loadStats(), eveLoadToday(), eveLoadWeekly(), loadWeekChart(),
-    loadRuns(),
+    loadRuns(), loadCalendar(),
   ]);
 }
 
@@ -1598,6 +2204,51 @@ async function changeTaskPriority(taskId, priority) {
     TPP.classList.remove('open');
     _openTpp = null;
     await loadAll();
+  } catch(e) { showFeedback('Error', false); }
+}
+
+// ── Schedule-to-day picker (Weekly backlog → a specific future day) ──
+// Opens beside the row (left/right, flipping to whichever side fits) rather
+// than stacked above/below like the priority/category pickers — this one's
+// a date input, not an option list, so it reads better next to the row.
+const TDP = document.getElementById('task-day-portal');
+let _openTdp = null;
+
+function openTaskDayPicker(e, taskId) {
+  e.stopPropagation();
+  const rect = e.currentTarget.getBoundingClientRect();
+  if (_openTdp === taskId) { TDP.classList.remove('open'); _openTdp = null; return; }
+  _openTdp = taskId;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const tmrw = new Date(); tmrw.setDate(tmrw.getDate() + 1);
+  const tmrwStr = tmrw.toISOString().slice(0, 10);
+
+  TDP.innerHTML = `
+    <div class="task-day-option-date">
+      <input type="date" id="task-day-input" min="${todayStr}" value="${tmrwStr}">
+      <button class="task-day-set-btn" type="button" onclick="scheduleTaskToDay(${taskId})">Set day</button>
+    </div>`;
+
+  const popW = 190;
+  const openRight = rect.right + 8 + popW <= window.innerWidth;
+  TDP.style.left   = openRight ? (rect.right + 8) + 'px' : Math.max(4, rect.left - popW - 8) + 'px';
+  TDP.style.top    = Math.min(rect.top, window.innerHeight - 90) + 'px';
+  TDP.style.bottom = 'auto';
+  TDP.classList.add('open');
+  document.getElementById('task-day-input').focus();
+}
+
+async function scheduleTaskToDay(taskId) {
+  const input = document.getElementById('task-day-input');
+  const val = input && input.value;
+  if (!val) return;
+  try {
+    const res = await api().schedule_task(taskId, val);
+    TDP.classList.remove('open');
+    _openTdp = null;
+    if (res.ok) { await loadAll(); showFeedback('Scheduled for ' + val); }
+    else showFeedback(res.error || 'Error', false);
   } catch(e) { showFeedback('Error', false); }
 }
 
@@ -1709,6 +2360,9 @@ async function openTaskCatPicker(e, taskId) {
                   onchange="recolorCategory(${c.id}, this.value)">
          </label>
          <span class="task-cat-name" data-name="${esc(c.name)}" onclick="changeTaskCat(${taskId}, ${c.id})">${esc(c.name)}</span>
+         <button class="cat-rest-btn${c.counts_as_rest ? ' active' : ''}" type="button"
+                 title="${c.counts_as_rest ? 'Counts as a rest day for runs' : 'Mark as a rest-day category (satisfies the day requirement for any run)'}"
+                 onclick="event.stopPropagation(); toggleCategoryRest(${c.id}, ${c.counts_as_rest ? 0 : 1})">&#128564;</button>
          <button class="cat-rename-btn" type="button" title="Rename category"
                  onclick="event.stopPropagation(); startEditCategoryName(event,${c.id},this.previousElementSibling)">&#9998;</button>
        </div>`

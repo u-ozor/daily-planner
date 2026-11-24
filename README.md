@@ -17,16 +17,19 @@ No cloud, no subscriptions, no telemetry. Everything runs locally.
 
 ## Features
 
+- **Finder** — 🔍 header icon or `Cmd F` opens a keyword search across every task's name *and* its category's name, regardless of scope or completion — see [Finder](#finder) below
 - **Two-bucket planning** — every task is either "today" or "weekly backlog"; nothing spans days
 - **Week at a Glance grid** — scrollable week-by-week view (current week plus up to ~3 months of history) of what was planned/completed each day, with a hover popover for overflow days
+- **Calendar tab** — a month-grid view for planning ahead; click any day (today or future) to see what's scheduled and add a task to it — see [Calendar Tab](#calendar-tab)
 - **Priorities** — High / Medium / Low, set on add or changed later via a click-to-pick badge
-- **Categories** — named, colored tags shared across all tasks; both color and name are editable inline wherever a category is selectable, and recolor/rename updates every task using that category at once
+- **Categories** — named, colored tags shared across all tasks; both color and name are editable inline wherever a category is selectable, and recolor/rename updates every task using that category at once. Any category can also be flagged (💤) to count as a rest day for Runs — see [Runs](#runs)
 - **Repeating tasks** — mark a task repeatable; completing it doesn't end it — the 2 AM agent re-adds it to the weekly backlog automatically
 - **Hopscotch tasks** (🦘) — mark a task so it can't be completed again until a full day has passed since the last time — see [Hopscotch Tasks](#hopscotch-tasks)
 - **Manual drag-reorder** — drag the `⋮⋮` handle to override priority sort order; a marker flags tasks moved out of natural order
 - **Inline editing** — double-click any task name to rename it in place
 - **Markdown-style formatting** — `**bold**`, `*italic*`, `~~strikethrough~~` in task names
 - **Pinned always-on-top tracker** — a small floating window with live checkboxes for today's tasks, independently zoomable
+- **Zoomable main window** — `Cmd +` / `Cmd -` / `Cmd 0` zoom the whole window (all three tabs), same mechanism as the pin tracker
 - **Evening review** — completion stats, a "dopamine" summary message, and a Week/2 Weeks/Month completion chart with click-through day detail
 - **Runs** — commit to x qualifying tasks a day for x days, with x allowances covering a missed day before the run breaks; see [Runs](#runs) below
 - **Year countdown** — header chip showing days remaining in the current year
@@ -55,7 +58,7 @@ LaunchAgent plists live in `~/Library/LaunchAgents/`.
 
 One window, shared header, two tabs — plus a separate pinned tracker. Opening via `planner morning` or `planner evening` (or launchd firing at your scheduled times) opens the same window and selects the matching tab; from there, click between tabs freely. Both tabs' data refresh in the background every 60 seconds and immediately after any action, so leaving the window open all day keeps it accurate.
 
-**Shared header** — date, live clock, and a countdown chip showing days left in the current year.
+**Shared header** — date, live clock, a countdown chip showing days left in the current year, and the 🔍 Finder icon (see [Finder](#finder) below).
 
 **Runs bar** — sits just under the header, visible from either tab. See [Runs](#runs) below.
 
@@ -84,6 +87,7 @@ Tasks moved to weekly by the 2AM agent (planned but not done) stay visible as un
 - `↻` button — toggle repeatable, same as the Today panel
 - `🦘` button — toggle hopscotch, same as the Today panel
 - `↑ today` button — promotes to today's list
+- `📅` button — opens a small date picker beside the row to send the task to a specific future day instead of today, without leaving the backlog
 - `✕` button — deletes
 
 When the backlog reaches 10 or more items, a red warning appears: `Clean out your weeklies`.
@@ -143,6 +147,49 @@ Zoom the text/layout with `Cmd +` / `Cmd -` (`Cmd 0` resets to 100%). The window
 
 ---
 
+## Calendar Tab
+
+A third tab, alongside Morning and Evening: a month grid, one cell per day, with the same colored-dot convention as Week at a Glance (category color or priority color if not done, grey once done). `‹`/`›` step a month at a time; `Today` jumps back to the current month.
+
+Click any day to open a small popover showing what's scheduled that day. Today and future days also get an inline add field — type a task and press Enter (or click `Add`) to drop it onto that day — plus a `▸ From backlog` toggle underneath it that expands a scrollable list of the current weekly backlog; click `+` next to any of them to send that existing task straight to the open day, rather than retyping it. Past days are read-only history, same as Week at a Glance.
+
+Under the hood this is the same `today_date` field every other "today" task already uses — a Calendar entry is just a today-scoped task whose date happens to be in the future. Nothing distinguishes it from an ordinary task once its day arrives: it simply shows up in that morning's Today panel like anything added the normal way, and the existing 2 AM rollover/history logic applies to it unchanged.
+
+**Zoom** (`Cmd +` / `Cmd -` / `Cmd 0`) works here like everywhere else in the window, but the Calendar tab specifically scrolls vertically if zoomed content outgrows the window — unlike Morning/Evening, nothing inside the month grid itself scrolls, so the tab needs to or days at the bottom would become genuinely unreachable rather than just zoomed in.
+
+---
+
+## Finder
+
+Click the 🔍 icon in the header (or press `Cmd F` from anywhere in the window) to open a keyword search over every task you've ever entered — Today, Weekly Backlog, completed or not, any week.
+
+A keyword matches if it's in the **task's own text or its category's name** — so searching "questrade" finds a task like "fund account" as long as it's tagged with a Questrade category, even though the word "questrade" never appears in the task text itself. That's the point: you don't have to remember which wording you used, just a category or any word from the task.
+
+Each result shows its priority, category, and a context badge for where it lives (`Today`, `Weekly`, or the date it was/is scheduled for). From the results you can tick a checkbox to mark a task done/undone, or — for a weekly-backlog result — click `↑` to promote it straight to today, without leaving the search panel or hunting through tabs for it.
+
+`Esc`, or clicking outside the panel, closes it.
+
+Backed by `PlannerAPI.search_tasks()` (`planner.py`) — a single `LIKE`-based query across `tasks.name` and the joined `categories.name`, capped at 200 results. Covered by `TestSearch` in `tests/test_planner.py`.
+
+---
+
+## Scheduling from Other Claude Code Sessions
+
+A Claude Code session working on something unrelated — in any project directory, not just this one — can propose calendar entries here without opening the app, via a personal skill: `/to-planner`.
+
+How it's gated: the skill reads whatever context it's pointed at (a file, a description of an update), works out concrete candidate entries, and **shows them to you for approval before writing anything**. Only approved entries get written, one at a time, through a plain CLI mode added for this:
+
+```
+planner schedule --name "..." --date YYYY-MM-DD [--priority high|medium|low] [--category "..."] [--repeatable]
+planner schedule --name "..." --scope weekly [--priority ...] [--category ...]   # no fixed day
+```
+
+This is the same write path either way: `--scope weekly` skips `--date` and lands the task in the weekly backlog instead of on a specific day. The CLI is the only thing that touches the database — the skill itself never writes directly, so what actually lands here is always deterministic and inspectable, independent of what the invoking session decided. See `~/.claude/skills/to-planner/SKILL.md` for the full prompt.
+
+This is a first slice of the "Local Agent Coordination" idea under [Future Features](#future-features) below — context-in, explicit-dates-out, held for your approval — without yet touching the vault or any smarter scheduling logic.
+
+---
+
 ## Runs
 
 A Run commits you to completing **x tasks a day for x days**, with **x allowances** that cover a missed day before the run breaks.
@@ -156,7 +203,11 @@ A Run commits you to completing **x tasks a day for x days**, with **x allowance
 
 **Why allowances rather than an unlimited streak freeze or a "do 2x tomorrow" makeup**: an allowance absorbs a missed day with zero added pressure — nothing extra is demanded of you the next day, which matters most on exactly the days a miss is likely (illness, a bad mental-health day, life). An unlimited freeze removes all stakes and stops meaning anything; a 2x makeup demands more effort right when you're least likely to have it, which tends to compound one bad day into two. A small, finite number of allowances keeps the run meaningful while absorbing normal life — tune the count to how forgiving you want a given run to be.
 
-**Runs bar** — each run shows as a chip: name, a dot per evaluated day (green = hit, amber = allowance used, red = miss/break), and `elapsed/total_days`. Click a chip for detail — target, category filter, allowances remaining, status — and to cancel or delete it.
+**Rest-day categories** — flag any category as a rest day (💤 button next to its name, wherever categories are listed) and a completed task in that category satisfies the day outright for *every* active run — no allowance spent, regardless of target_per_day. Use it for planned days off (e.g. a "Rest" category on a workout run) without burning down your limited allowances.
+
+**Runs bar** — each run shows as a chip: name, a dot per evaluated day (green = hit, blue = rest day, amber = allowance used, red = miss/break — most recent 14 shown), and `elapsed/total_days`. Click a chip for detail — target, category filter, allowances remaining, status, and the run's full day-by-day history: the most recent week as individual dots, everything older merged into one dot per week (a pie split by how many of that week were hit/rest/allowance/miss) so a long run's history stays glanceable instead of growing the row forever — and to cancel or delete the run.
+
+**Finished runs (completed, broken, or cancelled)** stay in the bar for 2 days after they end, then drop out on their own instead of piling up forever. Nothing is lost — a `N past` button appears in the bar whenever any run has ever finished; click it for the full list (name, status, ended date), and click any of those to open the same detail popup as an active run — full history, still deletable there. Deleting a run is the only way to actually remove it; the 2-day window just controls what clutters the main bar.
 
 ---
 
@@ -210,6 +261,7 @@ planner pin        # open the pinned task tracker
 planner status     # print today's tasks and backlog count (no window)
 planner install    # rewrite launchd plists and reload them
 planner cleanup    # run the 2AM auto-move + Runs evaluation manually
+planner schedule   # add a task non-interactively — see Scheduling from Other Claude Code Sessions
 ```
 
 The `planner` alias is installed to `~/.zshrc` by `install.sh`.
@@ -286,21 +338,62 @@ If a scheduled popup still isn't appearing despite this, run `planner install` t
 
 ## Future Features
 
+**Next major work:**
+
+### iPhone App *(not started)*
+
+A native or companion iOS app mirroring the two-bucket model (today / weekly
+backlog), syncing against the same data this macOS app owns. Would need a
+sync layer — `tasks.db` is currently local-only SQLite with no server
+component — so this is the piece most likely to force a decision on
+local-network sync (e.g. a small LAN service) vs. introducing any cloud
+component, which conflicts with the no-cloud/no-accounts model described
+under [Data & Privacy](#data--privacy) unless scoped carefully. Reliability
+Hardening below is a prerequisite in spirit: a second platform is a second
+place for the same class of issue to show up, so the install/recovery
+patterns need to already be solid on one platform before adding another.
+
+### Reliability Hardening *(not started)*
+
+The macOS app has at least one reproducible native crash
+(`AttributeError: 'NoneType' object has no attribute 'frame'`, a Cocoa
+`NSException` from inside pywebview's fullscreen-tile-reshape notification
+handling, not from any code in `planner.py` — no `.frame`/`fullscreen`/
+`NSWindow` reference exists anywhere in this codebase). Observed on ~2
+occasions, both tied to plugging in or unplugging an HDMI display rather
+than the window's own native fullscreen toggle — macOS reshapes any
+fullscreen-capable Space when the display arrangement changes, which can hit
+a stale/duplicate window reference inside pywebview's Cocoa backend. Root
+cause (e.g. whether the Pin window's separate lifecycle is involved) isn't
+pinned down yet; not fixing by disabling the window's native fullscreen
+capability, since that treats a guessed trigger as the cause.
+
+More broadly, "more reliable" is the real prerequisite for "cross-platform"
+above: the goal isn't deep observability/monitoring tooling, it's that the
+install and run paths recover from their own likely failure modes on their
+own — in the same spirit as the existing
+[Self-Healing Against launchd Drops](#self-healing-against-launchd-drops)
+(detect a known-bad state, self-correct, no user intervention) — so that
+adding a second platform multiplies a solid pattern instead of multiplying
+failure surface.
+
 ### Always-On Background App *(partially built — focus/switch works, true residency doesn't)*
 
 Current state: while the Morning/Evening window is open, a local Unix socket (`~/Library/Application Support/DailyPlanner/planner.sock`) lets a later `planner morning`/`planner evening` invocation — from `launchd` or the terminal — notify that running process instead of opening a second one. The running instance switches to the requested tab and brings itself to the front (via AppKit's `activateIgnoringOtherApps_`); the new invocation just sends the message and exits.
 
 What's still missing: this only helps while a window is already open. There's no background process that stays resident once you close the window, so the header (clock, date, year countdown) and Runs state go idle when nothing's open, and a `launchd` fire with no window open still spawns a fresh one (correctly — there's nothing to notify). True permanence would need a background process — most naturally a macOS menu-bar icon via a library like `rumps`, or `pywebview` kept running in a hidden/background mode — that stays resident at all times. Logged here rather than built, since it pulls in stack beyond what the socket fix needed — build it if/when you want the app to never fully quit.
 
-### Local Agent Coordination *(planned)*
+### Local Agent Coordination *(first slice built — see [Scheduling from Other Claude Code Sessions](#scheduling-from-other-claude-code-sessions))*
 
 The fundamental next step: local agents that connect this planner to your email, calendar, and other data sources to help keep your days coordinated automatically.
 
 The idea: an agent reads your calendar, scans relevant emails, and surfaces suggested tasks into the morning window — which you accept, reject, or modify before they enter your list. The planner remains the single point of truth for what you've committed to. Agents are advisors, not writers.
 
-Potential integrations:
-- **Calendar** — surface meetings, deadlines, and blocked time as context when planning
-- **Email** — flag action-item emails as candidate tasks
-- **Cross-tool awareness** — agent knows what's already in your backlog so it doesn't suggest duplicates or overload a day
+**Built:** the `/to-planner` skill + `planner schedule` CLI — any Claude Code session can read a context update and propose dated entries, held for approval before anything is written. This is the "advisors, not writers" principle above, just not yet wired to any particular data source.
+
+Potential integrations still ahead:
+- **Calendar/email as input** — surface meetings, deadlines, blocked time, or action-item emails as context when a session is proposing entries
+- **Obsidian vault as context** — read the human log files to inform scheduling, not just whatever file a session happens to be pointed at
+- **Cross-tool awareness** — knows what's already in the backlog/calendar so it doesn't suggest duplicates or overload a day
 
 Local-first, no cloud dependency. Any external service access (Gmail, calendar APIs) will be gated behind explicit user authorization and shown transparently in the window.

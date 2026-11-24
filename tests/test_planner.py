@@ -8,12 +8,14 @@ real ~/Library/Application Support/DailyPlanner install.
 Usage: python3 -m unittest discover -s tests
    or: python3 tests/test_planner.py
 """
+import io
 import sys
 import tempfile
 import shutil
 import threading
 import time
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from datetime import date, timedelta
 from unittest.mock import patch, MagicMock
@@ -98,6 +100,29 @@ class TestAddTask(PlannerTestCase):
             "SELECT today_date FROM tasks WHERE id=?", (t["id"],)
         ).fetchone()[0])
 
+    def test_add_task_with_future_target_date_is_not_in_today(self):
+        future = str(date.today() + timedelta(days=5))
+        self.api.add_task("future task", 2, "today", target_date=future)
+        self.assertEqual(self.api.get_today_tasks(), [])
+        row = self.conn.execute(
+            "SELECT today_date FROM tasks WHERE name='future task'"
+        ).fetchone()
+        self.assertEqual(row["today_date"], future)
+
+    def test_add_task_without_target_date_still_defaults_to_today(self):
+        self.api.add_task("plain today task", 2, "today")
+        row = self.conn.execute(
+            "SELECT today_date FROM tasks WHERE name='plain today task'"
+        ).fetchone()
+        self.assertEqual(row["today_date"], str(date.today()))
+
+    def test_invalid_target_date_falls_back_to_today(self):
+        self.api.add_task("bad date task", 2, "today", target_date="not-a-date")
+        row = self.conn.execute(
+            "SELECT today_date FROM tasks WHERE name='bad date task'"
+        ).fetchone()
+        self.assertEqual(row["today_date"], str(date.today()))
+
 
 class TestToggles(PlannerTestCase):
     def test_set_repeatable_toggle(self):
@@ -116,6 +141,42 @@ class TestToggles(PlannerTestCase):
         self.assertEqual(self.api.get_today_tasks()[0]["completed"], 1)
         self.api.unmark_done(tid)
         self.assertEqual(self.api.get_today_tasks()[0]["completed"], 0)
+
+
+class TestSearch(PlannerTestCase):
+    """Finder: a keyword should surface a task whether it matches the task's
+    own text or only its category's name, regardless of scope or completion."""
+
+    def test_matches_task_name_case_insensitively(self):
+        self.api.add_task("Buy milk", 2, "today")
+        self.assertEqual(len(self.api.search_tasks("MILK")), 1)
+        self.assertEqual(self.api.search_tasks("bread"), [])
+
+    def test_matches_by_category_even_when_task_name_does_not(self):
+        cid = self.api.add_category("Questrade", "#6aaef0")["id"]
+        self.api.add_task("fund account", 2, "weekly", category_id=cid)
+        results = self.api.search_tasks("questrade")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["cat_name"], "Questrade")
+
+    def test_finds_tasks_across_both_scopes(self):
+        self.api.add_task("today thing", 2, "today")
+        self.api.add_task("weekly thing", 2, "weekly")
+        results = self.api.search_tasks("thing")
+        self.assertEqual({r["scope"] for r in results}, {"today", "weekly"})
+
+    def test_includes_completed_tasks(self):
+        self.api.add_task("archived task", 2, "today")
+        tid = self.api.get_today_tasks()[0]["id"]
+        self.api.mark_done(tid)
+        results = self.api.search_tasks("archived")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["completed"], 1)
+
+    def test_blank_query_returns_nothing(self):
+        self.api.add_task("anything", 2, "today")
+        self.assertEqual(self.api.search_tasks(""), [])
+        self.assertEqual(self.api.search_tasks("   "), [])
 
 
 class TestHopscotch(PlannerTestCase):
@@ -334,6 +395,60 @@ class TestPlannedHistory(PlannerTestCase):
         self.assertEqual(history, list(reversed(days))[:5])  # newest-first; two oldest evicted
 
 
+class TestScheduleTask(PlannerTestCase):
+    """schedule_task is the backlog-side 'send to a specific day' action —
+    like promote_task but to an arbitrary future day instead of always today."""
+
+    def test_schedules_backlog_task_to_a_future_day(self):
+        self.api.add_task("write", 2, "weekly")
+        tid = self.conn.execute("SELECT id FROM tasks WHERE name='write'").fetchone()["id"]
+
+        target = str(date.today() + timedelta(days=3))
+        res = self.api.schedule_task(tid, target)
+        self.assertTrue(res["ok"])
+
+        row = self.conn.execute(
+            "SELECT scope, today_date FROM tasks WHERE id=?", (tid,)
+        ).fetchone()
+        self.assertEqual(row["scope"], "today")
+        self.assertEqual(row["today_date"], target)
+
+    def test_rejects_a_past_date(self):
+        self.api.add_task("write", 2, "weekly")
+        tid = self.conn.execute("SELECT id FROM tasks WHERE name='write'").fetchone()["id"]
+
+        yesterday = str(date.today() - timedelta(days=1))
+        res = self.api.schedule_task(tid, yesterday)
+        self.assertFalse(res["ok"])
+
+        row = self.conn.execute("SELECT scope FROM tasks WHERE id=?", (tid,)).fetchone()
+        self.assertEqual(row["scope"], "weekly")
+
+    def test_rejects_an_invalid_date_string(self):
+        self.api.add_task("write", 2, "weekly")
+        tid = self.conn.execute("SELECT id FROM tasks WHERE name='write'").fetchone()["id"]
+
+        res = self.api.schedule_task(tid, "not-a-date")
+        self.assertFalse(res["ok"])
+
+    def test_only_applies_to_weekly_scoped_tasks(self):
+        self.api.add_task("write", 2, "today")
+        tid = self.conn.execute("SELECT id FROM tasks WHERE name='write'").fetchone()["id"]
+        original_date = self.conn.execute(
+            "SELECT today_date FROM tasks WHERE id=?", (tid,)
+        ).fetchone()["today_date"]
+
+        target = str(date.today() + timedelta(days=3))
+        res = self.api.schedule_task(tid, target)
+        self.assertTrue(res["ok"])  # no-op, not an error — matches promote_task's own behavior
+
+        row = self.conn.execute(
+            "SELECT scope, today_date FROM tasks WHERE id=?", (tid,)
+        ).fetchone()
+        self.assertEqual(row["scope"], "today")
+        self.assertEqual(row["today_date"], original_date)  # untouched
+
+
 class TestConcurrentApiCalls(PlannerTestCase):
     """Regression test for the pywebview threading model: every JS->Python
     call runs in its own freshly spawned thread with no serialization of its
@@ -461,6 +576,35 @@ class TestRuns(PlannerTestCase):
         self.assertEqual(run["days"][0]["hit"], 1)
         self.assertEqual(run["days"][0]["count"], 1.0)
 
+    def test_rest_day_category_satisfies_run_without_target_or_allowance(self):
+        rest_cat = self.api.add_category("rest", "#999999")
+        self.api.set_category_rest(rest_cat["id"], 1)
+        self.api.start_run("read", 5, 10, 0)  # unmet target_per_day on its own
+        rid = self.latest_run_id()
+        self.backdate_run(rid, 1)
+        self.add_and_complete("nothing today", 1, rest_cat["id"])
+
+        planner.evaluate_runs(self.conn)
+        run = self.api.get_runs()[0]
+        self.assertEqual(run["status"], "active")
+        self.assertEqual(run["allowances_used"], 0)
+        self.assertEqual(run["days"][0]["hit"], 1)
+        self.assertEqual(run["days"][0]["used_allowance"], 0)
+        self.assertEqual(run["days"][0]["is_rest"], 1)
+
+    def test_unflagged_category_completion_does_not_act_as_rest_day(self):
+        cat = self.api.add_category("errands", "#999999")  # counts_as_rest defaults to 0
+        self.api.start_run("read", 5, 10, 0)
+        rid = self.latest_run_id()
+        self.backdate_run(rid, 1)
+        self.add_and_complete("nothing today", 1, cat["id"])
+
+        planner.evaluate_runs(self.conn)
+        run = self.api.get_runs()[0]
+        self.assertEqual(run["status"], "broken")
+        self.assertEqual(run["days"][0]["hit"], 0)
+        self.assertEqual(run["days"][0]["is_rest"], 0)
+
     def test_evaluate_runs_is_idempotent(self):
         self.api.start_run("read", 1, 10, 3)
         rid = self.latest_run_id()
@@ -486,6 +630,98 @@ class TestRuns(PlannerTestCase):
         res2 = self.api.delete_run(rid)
         self.assertTrue(res2["ok"])
         self.assertEqual(self.api.get_runs(), [])
+
+
+class TestMonthOverview(PlannerTestCase):
+    def test_grid_is_full_weeks_covering_the_month(self):
+        overview = self.api.get_month_overview(2026, 11)
+        days = overview["days"]
+        self.assertEqual(len(days) % 7, 0)
+        self.assertEqual(date.fromisoformat(days[0]["date"]).weekday(), 0)   # Monday
+        self.assertEqual(date.fromisoformat(days[-1]["date"]).weekday(), 6)  # Sunday
+        first_of_month = next(d for d in days if d["date"] == "2026-11-01")
+        self.assertTrue(first_of_month["in_month"])
+
+    def test_tasks_appear_under_their_date(self):
+        # Day 20-ish of the current month, clamped to stay inside short months.
+        year, month = date.today().year, date.today().month
+        target = str(date(year, month, 1) + timedelta(days=min(19, calendar_len(year, month) - 1)))
+        self.api.add_task("mid-month item", 1, "today", target_date=target)
+        overview = self.api.get_month_overview(year, month)
+        day = next(d for d in overview["days"] if d["date"] == target)
+        self.assertEqual([t["name"] for t in day["tasks"]], ["mid-month item"])
+
+    def test_invalid_year_month_falls_back_to_current_month(self):
+        overview = self.api.get_month_overview("bad", "bad")
+        today = date.today()
+        self.assertEqual(overview["year"], today.year)
+        self.assertEqual(overview["month"], today.month)
+
+
+def calendar_len(year, month):
+    nxt = date(year + (month == 12), (month % 12) + 1, 1)
+    return (nxt - date(year, month, 1)).days
+
+
+class TestScheduleCLI(PlannerTestCase):
+    def _run(self, argv):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            planner.run_schedule(argv)
+        return buf.getvalue()
+
+    def test_schedule_adds_task_on_given_date(self):
+        future = str(date.today() + timedelta(days=3))
+        self._run(["--name", "cli task", "--date", future, "--priority", "high"])
+        row = self.conn.execute(
+            "SELECT priority, today_date FROM tasks WHERE name='cli task'"
+        ).fetchone()
+        self.assertEqual(row["today_date"], future)
+        self.assertEqual(row["priority"], 1)
+
+    def test_schedule_weekly_scope_ignores_missing_date(self):
+        self._run(["--name", "cli weekly task", "--scope", "weekly"])
+        row = self.conn.execute(
+            "SELECT scope, today_date FROM tasks WHERE name='cli weekly task'"
+        ).fetchone()
+        self.assertEqual(row["scope"], "weekly")
+        self.assertIsNone(row["today_date"])
+
+    def test_schedule_requires_date_for_today_scope(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf), self.assertRaises(SystemExit):
+            planner.run_schedule(["--name", "no date task"])
+        self.assertIsNone(self.conn.execute(
+            "SELECT id FROM tasks WHERE name='no date task'"
+        ).fetchone())
+
+    def test_schedule_rejects_invalid_date(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf), self.assertRaises(SystemExit):
+            planner.run_schedule(["--name", "bad date task", "--date", "nope"])
+        self.assertIsNone(self.conn.execute(
+            "SELECT id FROM tasks WHERE name='bad date task'"
+        ).fetchone())
+
+    def test_schedule_resolves_existing_category_without_changing_its_color(self):
+        cat = self.api.add_category("Driver Prep", "#123456")
+        future = str(date.today() + timedelta(days=1))
+        self._run(["--name", "quiz review", "--date", future, "--category", "driver prep"])
+        row = self.conn.execute("""
+            SELECT t.category_id, c.color FROM tasks t JOIN categories c ON t.category_id = c.id
+            WHERE t.name='quiz review'
+        """).fetchone()
+        self.assertEqual(row["category_id"], cat["id"])
+        self.assertEqual(row["color"], "#123456")
+
+    def test_schedule_creates_missing_category(self):
+        future = str(date.today() + timedelta(days=1))
+        self._run(["--name", "new cat task", "--date", future, "--category", "Brand New Cat"])
+        row = self.conn.execute("""
+            SELECT c.name FROM tasks t JOIN categories c ON t.category_id = c.id
+            WHERE t.name='new cat task'
+        """).fetchone()
+        self.assertEqual(row["name"], "Brand New Cat")
 
 
 class TestEnsureAgentsLoaded(unittest.TestCase):
